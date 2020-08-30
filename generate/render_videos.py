@@ -8,6 +8,7 @@
 from __future__ import print_function
 import math
 import sys
+sys.path.append('.')
 import random
 import argparse
 import json
@@ -284,7 +285,8 @@ def unlock(fpath):
 def main(args):
     num_digits = 6
     prefix = '%s_%s_' % (args.filename_prefix, args.split)
-    img_template = '%s%%0%dd.avi' % (prefix, num_digits)
+    # img_template = '%s%%0%dd.avi' % (prefix, num_digits)
+    img_template = '%s%%0%dd' % (prefix, num_digits)
     scene_template = '%s%%0%dd.json' % (prefix, num_digits)
     blend_template = '%s%%0%dd.blend' % (prefix, num_digits)
     args.output_image_dir = os.path.join(args.output_dir, 'images')
@@ -295,7 +297,10 @@ def main(args):
     blend_template = os.path.join(args.output_blend_dir, blend_template)
 
     mkdir_p(args.output_image_dir)
+    # mkdir_p(os.path.join(args.output_image_dir, 'RGB'))
+    # mkdir_p(os.path.join(args.output_image_dir, 'Depth'))
     mkdir_p(args.output_scene_dir)
+
     if args.save_blendfiles == 1 and not os.path.isdir(args.output_blend_dir):
         mkdir_p(args.output_blend_dir)
 
@@ -444,6 +449,10 @@ def render_scene(
     # Load the main blendfile
     bpy.ops.wm.open_mainfile(filepath=args.base_scene_blendfile)
 
+    output_image_dir = os.path.join(args.output_image_dir, os.path.basename(output_image).split('.')[0])
+
+    mkdir_p(output_image_dir)
+
     # Load materials
     utils.load_materials(args.material_dir)
 
@@ -453,27 +462,52 @@ def render_scene(
     bpy.ops.screen.frame_jump(end=False)
     render_args = bpy.context.scene.render
     render_args.engine = "CYCLES"
-    render_args.filepath = output_image
+    render_args.filepath = os.path.abspath(os.path.join(output_image_dir, 'RGB'))
+    # render_args.filepath = os.path.abspath(output_image)
     render_args.resolution_x = args.width
     render_args.resolution_y = args.height
     render_args.resolution_percentage = 100
     render_args.tile_x = args.render_tile_size
     render_args.tile_y = args.render_tile_size
-    render_args.image_settings.file_format = 'AVI_JPEG'
+    # render_args.image_settings.file_format = 'AVI_JPEG'
+    render_args.image_settings.file_format = 'JPEG'
+    render_args.image_settings.use_zbuffer = True # render depth
     # Video params
     bpy.context.scene.frame_start = 0
     bpy.context.scene.frame_end = args.num_frames  # same as kinetics
     render_args.fps = args.fps
 
+    # render depth
+    bpy.context.scene.render.use_compositing = True
+    bpy.data.scenes['Scene'].use_nodes = True
+    tree = bpy.data.scenes['Scene'].node_tree
+    links = tree.links
+
+    # create input render layer node  
+    rl = tree.nodes['Render Layers']
+
+    map_value_node = tree.nodes.new("CompositorNodeMapValue") # map the depth to [0, 1] st we can save it as jpg
+    map_value_node.size = [0.05,] 
+
+    output_file_node = tree.nodes.new("CompositorNodeOutputFile") # this nodes saves image
+    output_file_node.base_path = os.path.abspath(output_image_dir)
+    output_file_node.file_slots[0].path = "Depth"
+
+    links.new(rl.outputs['Z'], map_value_node.inputs['Value'])
+    links.new(map_value_node.outputs['Value'], output_file_node.inputs['Image'])
+
+
     if args.cpu is False:
         # Blender changed the API for enabling CUDA at some point
-        if bpy.app.version < (2, 78, 0):
-            bpy.context.user_preferences.system.compute_device_type = 'CUDA'
-            bpy.context.user_preferences.system.compute_device = 'CUDA_0'
-        else:
-            cycles_prefs = bpy.context.user_preferences.addons[
-                'cycles'].preferences
-            cycles_prefs.compute_device_type = 'CUDA'
+        bpy.context.user_preferences.system.compute_device_type = 'CUDA'
+        bpy.context.user_preferences.system.compute_device = 'CUDA_0'
+        # if bpy.app.version < (2, 78, 0):
+        #     bpy.context.user_preferences.system.compute_device_type = 'CUDA'
+        #     bpy.context.user_preferences.system.compute_device = 'CUDA_0'
+        # else:
+        #     cycles_prefs = bpy.context.user_preferences.addons['cycles'].preferences
+        #     cycles_prefs.compute_device_type = 'CUDA'
+
             # # In case more than 1 device passed in, use only the first one
             # Not effective, CUDA_VISIBLE_DEVICES before running singularity
             # works fastest.
@@ -508,44 +542,112 @@ def render_scene(
         add_random_camera_motion(args.num_frames)
     if output_blendfile is not None and not os.path.exists(output_blendfile):
         bpy.ops.wm.save_as_mainfile(filepath=output_blendfile)
-    max_num_render_trials = 10
+    # max_num_render_trials = 10
     if args.render:
-        while max_num_render_trials > 0:
-            try:
-                if args.suppress_blender_logs:
-                    # redirect output to log file
-                    logfile = '/dev/null'
-                    open(logfile, 'a').close()
-                    old = os.dup(1)
-                    sys.stdout.flush()
-                    os.close(1)
-                    os.open(logfile, os.O_WRONLY)
-                bpy.ops.render.render(animation=True)
-                if args.suppress_blender_logs:
-                    # disable output redirection
-                    os.close(1)
-                    os.dup(old)
-                    os.close(old)
-                break
-            except Exception as e:
-                max_num_render_trials -= 1
-                print(e)
+        # bpy.context.scene.render.resolution_percentage = 100
+        bpy.ops.render.render(animation=True)
 
+
+# https://blender.stackexchange.com/questions/38009/3x4-camera-matrix-from-blender-camera
+def get_calibration_matrix_K_from_blender(camd):
+    f_in_mm = camd.lens
+    scene = bpy.context.scene
+    resolution_x_in_px = scene.render.resolution_x
+    resolution_y_in_px = scene.render.resolution_y
+    scale = scene.render.resolution_percentage / 100
+    sensor_width_in_mm = camd.sensor_width
+    sensor_height_in_mm = camd.sensor_height
+    pixel_aspect_ratio = scene.render.pixel_aspect_x / scene.render.pixel_aspect_y
+    if (camd.sensor_fit == 'VERTICAL'):
+        # the sensor height is fixed (sensor fit is horizontal), 
+        # the sensor width is effectively changed with the pixel aspect ratio
+        s_u = resolution_x_in_px * scale / sensor_width_in_mm / pixel_aspect_ratio 
+        s_v = resolution_y_in_px * scale / sensor_height_in_mm
+    else: # 'HORIZONTAL' and 'AUTO'
+        # the sensor width is fixed (sensor fit is horizontal), 
+        # the sensor height is effectively changed with the pixel aspect ratio
+        pixel_aspect_ratio = scene.render.pixel_aspect_x / scene.render.pixel_aspect_y
+        s_u = resolution_x_in_px * scale / sensor_width_in_mm
+        s_v = resolution_y_in_px * scale * pixel_aspect_ratio / sensor_height_in_mm
+    
+
+    # Parameters of intrinsic calibration matrix K
+    alpha_u = f_in_mm * s_u
+    alpha_v = f_in_mm * s_v
+    u_0 = resolution_x_in_px * scale / 2
+    v_0 = resolution_y_in_px * scale / 2
+    skew = 0 # only use rectangular pixels
+
+    K = np.array(
+        ((alpha_u, skew,    u_0, 0),
+        (    0  , alpha_v, v_0, 0),
+        (    0  , 0,        1 , 0),
+        (    0  , 0,        0 , 1),
+        ))
+    return K
+
+def get_4x4_RT_matrix_from_blender(cam):
+    # bcam stands for blender camera
+    R_bcam2cv = np.array(
+        ((1, 0,  0),
+         (0, -1, 0),
+         (0, 0, -1)))
+
+    # Transpose since the rotation is object rotation, 
+    # and we want coordinate rotation
+    # R_world2bcam = cam.rotation_euler.to_matrix().transposed()
+    # T_world2bcam = -1*R_world2bcam * location
+    #
+    # Use matrix_world instead to account for all constraints
+    location, rotation = cam.matrix_world.decompose()[0:2]
+    R_world2bcam = rotation.to_matrix().transposed()
+    
+    R_world2bcam = np.array(R_world2bcam)
+    location = np.array(location)
+
+    print(location)
+
+    # Convert camera location to translation vector used in coordinate changes
+    # T_world2bcam = -1*R_world2bcam*cam.location
+    # Use location from matrix_world to account for constraints:     
+    T_world2bcam = -1* np.dot(R_world2bcam, location)
+
+    # Build the coordinate transform matrix from world to computer vision camera
+    # NOTE: Use * instead of @ here for older versions of Blender
+    # TODO: detect Blender version
+    R_world2cv = np.dot(R_bcam2cv, R_world2bcam)
+    T_world2cv = np.dot(R_bcam2cv, T_world2bcam)
+
+    # put into 3x4 matrix
+    RT = np.concatenate((R_world2cv, T_world2cv[:, None]), axis=1)
+    RT = np.concatenate((RT, np.array([0, 0, 0, 1])[None, :]), axis=0)
+    # RT = np.array((
+    #     R_world2cv[0][:] + (T_world2cv[0],),
+    #     R_world2cv[1][:] + (T_world2cv[1],),
+    #     R_world2cv[2][:] + (T_world2cv[2],)
+    #      ))
+    return RT
 
 def print_camera_matrix():
     # from
     # https://blender.stackexchange.com/questions/16472/how-can-i-get-the-cameras-projection-matrix
-    camera = bpy.data.objects['Camera']
-    render = bpy.context.scene.render
-    modelview_matrix = camera.matrix_world.inverted()
-    projection_matrix = camera.calc_matrix_camera(
-        render.resolution_x,
-        render.resolution_y,
-        render.pixel_aspect_x,
-        render.pixel_aspect_y,
-    )
-    final_mat = projection_matrix * modelview_matrix
-    print('Overall camera matrix:', final_mat)
+    # camera = bpy.data.objects['Camera']
+    # render = bpy.context.scene.render
+    # modelview_matrix = camera.matrix_world.inverted()
+    # projection_matrix = camera.calc_matrix_camera(
+    #     render.resolution_x,
+    #     render.resolution_y,
+    #     render.pixel_aspect_x,
+    #     render.pixel_aspect_y,
+    # )
+    # final_mat = projection_matrix * modelview_matrix
+    # print('Overall camera matrix:', final_mat)
+    Intrinsics = get_calibration_matrix_K_from_blender(bpy.data.cameras['Camera'])
+    Extrinsics = get_4x4_RT_matrix_from_blender(bpy.data.objects['Camera'])
+    
+    print('Intrinsics matrix:', Intrinsics)
+    print('Extrinsics matrix:', Extrinsics)
+    print('Overall matrix:', np.dot(Intrinsics, Extrinsics))
 
 
 def get_new_camera_location():

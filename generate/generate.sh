@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES="0" blender --background --python render_videos.py -- --num_images 2 --suppress_blender_logs --save_blendfiles 1 --max_motions=2 --debug --num_frames 1 --render False
