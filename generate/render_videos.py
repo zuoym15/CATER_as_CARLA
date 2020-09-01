@@ -615,9 +615,6 @@ def get_4x4_RT_matrix_from_blender(cam):
     R_world2bcam = np.array(R_world2bcam)
     location = np.array(location)
 
-    print(location)
-    print(R_world2bcam)
-
     # Convert camera location to translation vector used in coordinate changes
     # T_world2bcam = -1*R_world2bcam*cam.location
     # Use location from matrix_world to account for constraints:     
