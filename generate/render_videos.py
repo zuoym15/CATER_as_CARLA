@@ -292,17 +292,19 @@ def main(args):
     img_template = '%s%%0%dd' % (prefix, num_digits)
     scene_template = '%s%%0%dd.json' % (prefix, num_digits)
     blend_template = '%s%%0%dd.blend' % (prefix, num_digits)
+    camera_info_template = '%s%%0%dd.json' % (prefix, num_digits)
     args.output_image_dir = os.path.join(args.output_dir, 'images')
     args.output_scene_dir = os.path.join(args.output_dir, 'scenes')
     args.output_blend_dir = os.path.join(args.output_dir, 'blend')
+    args.output_camera_info_dir = os.path.join(args.output_dir, 'camera_info')
     img_template = os.path.join(args.output_image_dir, img_template)
     scene_template = os.path.join(args.output_scene_dir, scene_template)
     blend_template = os.path.join(args.output_blend_dir, blend_template)
+    camera_info_template = os.path.join(args.output_camera_info_dir, camera_info_template)
 
     mkdir_p(args.output_image_dir)
-    # mkdir_p(os.path.join(args.output_image_dir, 'RGB'))
-    # mkdir_p(os.path.join(args.output_image_dir, 'Depth'))
     mkdir_p(args.output_scene_dir)
+    mkdir_p(args.output_camera_info_dir)
 
     if args.save_blendfiles == 1 and not os.path.isdir(args.output_blend_dir):
         mkdir_p(args.output_blend_dir)
@@ -318,6 +320,7 @@ def main(args):
         blend_path = None
         if args.save_blendfiles == 1:
             blend_path = blend_template % (i + args.start_idx)
+        camera_info_path = camera_info_template % (i + args.start_idx)
         num_objects = random.randint(args.min_objects, args.max_objects)
         try:
             render_scene(
@@ -328,6 +331,7 @@ def main(args):
                 output_image=img_path,
                 output_scene=scene_path,
                 output_blendfile=blend_path,
+                camera_info_path=camera_info_path
             )
         except Exception as e:
             if args.debug:
@@ -464,7 +468,9 @@ def render_scene(
         output_split='none',
         output_image='render.png',
         output_scene='render_json',
-        output_blendfile=None):
+        output_blendfile=None,
+        camera_info_path=None
+        ):
     # Load the main blendfile
     bpy.ops.wm.open_mainfile(filepath=args.base_scene_blendfile)
 
@@ -522,10 +528,15 @@ def render_scene(
         bpy.data.scenes['Scene'].render.use_multiview = True
         bpy.data.scenes['Scene'].render.views_format = 'MULTIVIEW'
 
-        add_new_camera('Camera_L', (0, 0, 10))
+        add_new_camera('Camera_L', (7.48, -6.5, 5.34))
         add_new_camera('Camera_R', (7.48, 6.5, 5.34))
 
         bpy.ops.scene.render_view_add() # update the scene
+        bpy.data.scenes['Scene'].render.views['RenderView'].use = False # disable default cam
+        active_camera_list = ['Camera_L', 'Camera_R']
+    else:
+        active_camera_list = ['Camera']
+
 
     if args.cpu is False:
         # Blender changed the API for enabling CUDA at some point
@@ -573,8 +584,11 @@ def render_scene(
         setup_scene(
             args, num_objects, output_index, output_split,
             output_image, output_scene)
-    print_camera_matrix('Camera')
-    print_camera_matrix('Camera_R')
+
+    if camera_info_path is not None:
+        save_camera_info(camera_info_path, active_camera_list)
+        print(camera_info_path)
+
     if args.random_camera:
         add_random_camera_motion(args.num_frames)
     if output_blendfile is not None and not os.path.exists(output_blendfile):
@@ -583,6 +597,17 @@ def render_scene(
     if args.render:
         # bpy.context.scene.render.resolution_percentage = 100
         bpy.ops.render.render(animation=True)
+
+def save_camera_info(camera_info_path, active_camera_list):
+    dict_to_save = dict()
+    for active_camera_name in active_camera_list:
+        pix_T_cam, cam_T_world = get_camera_matrix(active_camera_name, verbose=False)
+        dict_to_save[active_camera_name] = dict()
+        dict_to_save[active_camera_name]['pix_T_cam'] = pix_T_cam.tolist()
+        dict_to_save[active_camera_name]['cam_T_world'] = cam_T_world.tolist()
+
+    with open(camera_info_path, 'w') as outfile:
+        json.dump(dict_to_save, outfile)
 
 
 # https://blender.stackexchange.com/questions/38009/3x4-camera-matrix-from-blender-camera
@@ -665,7 +690,7 @@ def get_4x4_RT_matrix_from_blender(cam):
     #      ))
     return RT
 
-def print_camera_matrix(camera_name='Camera'):
+def get_camera_matrix(camera_name='Camera', verbose=True):
     # from
     # https://blender.stackexchange.com/questions/16472/how-can-i-get-the-cameras-projection-matrix
     # camera = bpy.data.objects['Camera']
@@ -679,14 +704,17 @@ def print_camera_matrix(camera_name='Camera'):
     # )
     # final_mat = projection_matrix * modelview_matrix
     # print('Overall camera matrix:', final_mat)
-    print('camera name: ', camera_name)
+    
     Intrinsics = get_calibration_matrix_K_from_blender(bpy.data.cameras[camera_name])
     Extrinsics = get_4x4_RT_matrix_from_blender(bpy.data.objects[camera_name])
-    
-    print('Intrinsics matrix:', Intrinsics)
-    print('Extrinsics matrix:', Extrinsics)
-    print('Overall matrix:', np.dot(Intrinsics, Extrinsics))
 
+    if verbose is True:
+        print('camera name: ', camera_name)
+        print('Intrinsics matrix:', Intrinsics)
+        print('Extrinsics matrix:', Extrinsics)
+        print('Overall matrix:', np.dot(Intrinsics, Extrinsics))
+
+    return Intrinsics, Extrinsics
 
 def get_new_camera_location():
     # Don't move in X and Y at the same time, as it crosses the 0,0,z point

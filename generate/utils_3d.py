@@ -2,6 +2,7 @@ import numpy as np
 import imageio
 import os
 import cv2
+import json
 
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -12,20 +13,20 @@ img2depth_scale_factor = 1 / 0.05
 #                       [   0.,         466,  120.,            0.,        ],
 #                       [   0.,            0.,            1.,            0.,        ],
 #                       [   0.,            0.,            0.,            1.,        ]])
-pix_T_cam = np.array([[ 350,            0.,            160.,            0.,        ],
-                      [   0.,            350.0,         120.,            0.,        ],
-                      [   0.,            0.,            1.,            0.,        ],
-                      [   0.,            0.,            0.,            1.,        ]])
+# pix_T_cam = np.array([[ 350,            0.,            160.,            0.,        ],
+#                       [   0.,            350.0,         120.,            0.,        ],
+#                       [   0.,            0.,            1.,            0.,        ],
+#                       [   0.,            0.,            0.,            1.,        ]])
 
 # cam_T_world =  ([[  1.79110646e-01,  -9.83828962e-01,  -6.92129515e-06,   6.92129515e-05],
 #                  [ -9.83827949e-01,  -1.79110453e-01,  -1.46486727e-03,   1.46486727e-02],
 #                  [  1.43993914e-03,   2.69182754e-04,  -9.99998927e-01,   9.99998927e+00],
 #                  [  0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   1.00000000e+00]])
 
-cam_T_world =  ([[  6.63005233e-01,   7.48614728e-01,   9.85652093e-09,  -1.14529834e-02],
-                 [  3.54717642e-01,  -3.14153105e-01,  -8.80615234e-01,  -3.27243269e-03],
-                 [ -6.59241557e-01,   5.83852530e-01,  -4.73832011e-01,   1.07452393e+01],
-                 [  0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   1.00000000e+00]])
+# cam_T_world =  ([[  6.63005233e-01,   7.48614728e-01,   9.85652093e-09,  -1.14529834e-02],
+#                  [  3.54717642e-01,  -3.14153105e-01,  -8.80615234e-01,  -3.27243269e-03],
+#                  [ -6.59241557e-01,   5.83852530e-01,  -4.73832011e-01,   1.07452393e+01],
+#                  [  0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   1.00000000e+00]])
 
 # cam_T_world = ([[ -6.56495214e-01,   7.54330158e-01,  -6.09365181e-09,   7.43821359e-03],
 #                 [  3.58130813e-01,   3.11682045e-01,  -8.80111694e-01,  -4.95519886e-03],
@@ -129,7 +130,7 @@ def do_lim(xs, ys, zs, rgb=None, x_lim=None, y_lim=None, z_lim=None):
 
 
 
-def show_pointcloud(xyz, color=None, x_lim=None, y_lim=None, z_lim=None):
+def show_pointcloud(name, xyz, color=None, x_lim=None, y_lim=None, z_lim=None, top_view=True):
     def set_axes_equal(ax: plt.Axes):
         """Set 3D plot axes to equal scale.
 
@@ -152,11 +153,14 @@ def show_pointcloud(xyz, color=None, x_lim=None, y_lim=None, z_lim=None):
         ax.set_ylim3d([y - radius, y + radius])
         ax.set_zlim3d([z - radius, z + radius])
     
-    fig = plt.figure()
+    fig = plt.figure(name)
     ax = plt.axes(projection='3d')
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
+
+    if top_view:
+        ax.view_init(elev=90, azim=0)
 
     xs = xyz[0,:]
     ys = xyz[1,:]
@@ -175,33 +179,43 @@ def show_pointcloud(xyz, color=None, x_lim=None, y_lim=None, z_lim=None):
 
     set_axes_equal(ax)
 
-    plt.show()
+    
 
 if __name__ == "__main__":
-    base_dir = 'C://Users//zuoyi//Documents//GitHub//CATER_as_CARLA//output//images//CLEVR_new_000000'
-    # frame_name = '0000_R'
-    frame_name = '0000'
-    depth_img_name = 'Depth%s.exr' % frame_name
-    rgb_img_name = 'RGB%s.jpg' % frame_name
+    import imageio
+    images = []
+    filenames = ['../output/Camera_L.png', '../output/Camera_R.png']
+    for filename in filenames:
+        images.append(imageio.imread(filename))
+    imageio.mimsave('../output/bev.gif', images)
+    # base_dir = 'C://Users//zuoyi//Documents//GitHub//CATER_as_CARLA//output//images//CLEVR_new_000000'
+    # camera_info_file = 'C://Users//zuoyi//Documents//GitHub//CATER_as_CARLA//output//camera_info//CLEVR_new_000000.json'
+    # with open(camera_info_file) as json_file:
+    #     camera_info = json.load(json_file)
+    # # frame_names = ['0000', ]
+    # frame_names = ['0000_L', '0000_R']
+    # camera_names = ['Camera_L', 'Camera_R']
+    # for frame_name, camera_name in zip(frame_names, camera_names):
+    #     pix_T_cam = np.array(camera_info[camera_name]['pix_T_cam'])
+    #     cam_T_world = np.array(camera_info[camera_name]['cam_T_world'])
+        
+    #     depth_img_name = 'Depth%s.exr' % frame_name
+    #     rgb_img_name = 'RGB%s.jpg' % frame_name
 
-    depth_img_name = os.path.join(base_dir, depth_img_name)
-    rgb_img_name = os.path.join(base_dir, rgb_img_name)
+    #     depth_img_name = os.path.join(base_dir, depth_img_name)
+    #     rgb_img_name = os.path.join(base_dir, rgb_img_name)
 
-    depth = cv2.imread(depth_img_name, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)[:, :, 0]
-    # print(depth.shape)
-    # print(depth)
-    # print(np.min(depth), np.max(depth))
+    #     depth = cv2.imread(depth_img_name, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)[:, :, 0]
 
-    # depth = img2depth(load_image(depth_img_name))
-    rgb = load_image(rgb_img_name)
+    #     rgb = load_image(rgb_img_name)
 
-    xyz_cam = depth2pointcloud(depth, pix_T_cam)
-    world_T_cam = np.linalg.inv(cam_T_world)
-    xyz_world = np.dot(world_T_cam, xyz_cam)
+    #     xyz_cam = depth2pointcloud(depth, pix_T_cam)
+    #     world_T_cam = np.linalg.inv(cam_T_world)
+    #     xyz_world = np.dot(world_T_cam, xyz_cam)
 
-    # print(world_T_cam)
+    #     show_pointcloud(camera_name, xyz_world, rgb, x_lim=[-5, 5], y_lim=[-5, 5])
 
-    show_pointcloud(xyz_world, rgb, x_lim=[-5, 5], y_lim=[-5, 5])
+    # plt.show()
 
     
 
