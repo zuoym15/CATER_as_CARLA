@@ -462,6 +462,7 @@ def render_scene(
     bpy.ops.screen.frame_jump(end=False)
     render_args = bpy.context.scene.render
     render_args.engine = "CYCLES"
+    # render_args.engine = "BLENDER_RENDER"
     render_args.filepath = os.path.abspath(os.path.join(output_image_dir, 'RGB'))
     # render_args.filepath = os.path.abspath(output_image)
     render_args.resolution_x = args.width
@@ -486,16 +487,17 @@ def render_scene(
     # create input render layer node  
     rl = tree.nodes['Render Layers']
 
-    map_value_node = tree.nodes.new("CompositorNodeMapValue") # map the depth to [0, 1] st we can save it as jpg
-    map_value_node.size = [0.05,] 
+    # map_value_node = tree.nodes.new("CompositorNodeMapValue") # map the depth to [0, 1] st we can save it as jpg
+    # map_value_node.size = [0.05,] 
 
     output_file_node = tree.nodes.new("CompositorNodeOutputFile") # this nodes saves image
     output_file_node.base_path = os.path.abspath(output_image_dir)
+    output_file_node.format.file_format = 'OPEN_EXR' # this is linear format w/o distortion
     output_file_node.file_slots[0].path = "Depth"
 
-    links.new(rl.outputs['Z'], map_value_node.inputs['Value'])
-    links.new(map_value_node.outputs['Value'], output_file_node.inputs['Image'])
-
+    # links.new(rl.outputs[2], map_value_node.inputs['Value'])
+    # links.new(map_value_node.outputs['Value'], output_file_node.inputs['Image'])
+    links.new(rl.outputs[2], output_file_node.inputs['Image'])
 
     if args.cpu is False:
         # Blender changed the API for enabling CUDA at some point
@@ -552,7 +554,7 @@ def render_scene(
 def get_calibration_matrix_K_from_blender(camd):
     f_in_mm = camd.lens
     scene = bpy.context.scene
-    resolution_x_in_px = scene.render.resolution_x
+    resolution_x_in_px = scene.render.resolution_x 
     resolution_y_in_px = scene.render.resolution_y
     scale = scene.render.resolution_percentage / 100
     sensor_width_in_mm = camd.sensor_width
@@ -568,7 +570,8 @@ def get_calibration_matrix_K_from_blender(camd):
         # the sensor height is effectively changed with the pixel aspect ratio
         pixel_aspect_ratio = scene.render.pixel_aspect_x / scene.render.pixel_aspect_y
         s_u = resolution_x_in_px * scale / sensor_width_in_mm
-        s_v = resolution_y_in_px * scale * pixel_aspect_ratio / sensor_height_in_mm
+        # s_v = resolution_y_in_px * scale * pixel_aspect_ratio / sensor_height_in_mm
+        s_v = s_u # this is the correct model
     
 
     # Parameters of intrinsic calibration matrix K
@@ -588,6 +591,7 @@ def get_calibration_matrix_K_from_blender(camd):
 
 def get_4x4_RT_matrix_from_blender(cam):
     # bcam stands for blender camera
+    bpy.context.scene.update()
     R_bcam2cv = np.array(
         ((1, 0,  0),
          (0, -1, 0),
@@ -606,6 +610,7 @@ def get_4x4_RT_matrix_from_blender(cam):
     location = np.array(location)
 
     print(location)
+    print(R_world2bcam)
 
     # Convert camera location to translation vector used in coordinate changes
     # T_world2bcam = -1*R_world2bcam*cam.location
