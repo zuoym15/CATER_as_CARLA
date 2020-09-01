@@ -1,6 +1,6 @@
 # Copyright 2017-present, Facebook, Inc.
 # All rights reserved.
-#
+# Yolo1
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree. An additional grant
 # of patent rights can be found in the PATENTS file in the same directory.
@@ -501,14 +501,20 @@ def render_scene(
 
     if args.cpu is False:
         # Blender changed the API for enabling CUDA at some point
-        bpy.context.user_preferences.system.compute_device_type = 'CUDA'
-        bpy.context.user_preferences.system.compute_device = 'CUDA_0'
-        # if bpy.app.version < (2, 78, 0):
-        #     bpy.context.user_preferences.system.compute_device_type = 'CUDA'
-        #     bpy.context.user_preferences.system.compute_device = 'CUDA_0'
-        # else:
-        #     cycles_prefs = bpy.context.user_preferences.addons['cycles'].preferences
-        #     cycles_prefs.compute_device_type = 'CUDA'
+        # bpy.context.user_preferences.system.compute_device_type = 'CUDA'
+        # bpy.context.user_preferences.system.compute_device = 'CUDA_0'
+        
+        if bpy.app.version < (2, 78, 0) or os.name == 'nt':
+            bpy.context.user_preferences.system.compute_device_type = 'CUDA'
+            bpy.context.user_preferences.system.compute_device = 'CUDA_0'
+        
+        else:
+            # cycles_prefs = bpy.context.user_preferences.addons['cycles'].preferences
+            # cycles_prefs.compute_device_type = 'CUDA'
+
+            bpy.context.user_preferences.addons['cycles'].preferences.compute_device_type = 'CUDA'
+            bpy.context.user_preferences.addons['cycles'].preferences.compute_device = 'CUDA_0'
+
 
             # # In case more than 1 device passed in, use only the first one
             # Not effective, CUDA_VISIBLE_DEVICES before running singularity
