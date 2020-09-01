@@ -210,6 +210,9 @@ parser.add_argument(
          "quality of the rendered image but may affect the speed; CPU-based " +
          "rendering may achieve better performance using smaller tile sizes " +
          "while larger tile sizes may be optimal for GPU-based rendering.")
+parser.add_argument(
+    '--use_additional_camera', action='store_true',
+    help="this will add one additional camera to the scene")
 
 # Video options
 parser.add_argument(
@@ -381,12 +384,12 @@ def setup_scene(
     plane = bpy.context.object
 
     # Add random jitter to camera position
-    if args.camera_jitter > 0:
-        for i in range(3):
-            bpy.data.objects['Camera'].location[i] += rand(args.camera_jitter)
+    # if args.camera_jitter > 0:
+    #     for i in range(3):
+    #         bpy.data.objects['Camera'].location[i] += rand(args.camera_jitter)
     # Figure out the left, up, and behind directions along the plane and record
-    # them in the scene structure
-    camera = bpy.data.objects['Camera']
+
+    camera = bpy.data.objects['Camera'] 
 
     plane_normal = plane.data.vertices[0].normal
     cam_behind = camera.matrix_world.to_quaternion() * Vector((0, 0, -1))
@@ -437,6 +440,22 @@ def setup_scene(
     with open(output_scene, 'w') as f:
         json.dump(scene_struct, f, indent=2)
 
+def add_new_camera(camera_name, location):
+    # create the second camera
+    cam1 = bpy.data.cameras.new(camera_name)
+
+    # create the second camera object
+    cam_obj1 = bpy.data.objects.new(camera_name, cam1)
+    cam_obj1.location = location
+    bpy.context.scene.objects.link(cam_obj1)
+
+    bpy.ops.object.select_all(action='DESELECT')
+    bpy.data.objects[camera_name].select = True
+    bpy.context.scene.objects.active = bpy.data.objects[camera_name]
+    bpy.ops.object.constraint_add(type='TRACK_TO')
+    bpy.data.objects[camera_name].constraints['Track To'].target = bpy.data.objects['Empty'] # track origin
+    bpy.data.objects[camera_name].constraints['Track To'].track_axis = 'TRACK_NEGATIVE_Z'
+    bpy.data.objects[camera_name].constraints['Track To'].up_axis = 'UP_Y'
 
 def render_scene(
         args,
@@ -499,6 +518,15 @@ def render_scene(
     # links.new(map_value_node.outputs['Value'], output_file_node.inputs['Image'])
     links.new(rl.outputs[2], output_file_node.inputs['Image'])
 
+    if args.use_additional_camera is True:
+        bpy.data.scenes['Scene'].render.use_multiview = True
+        bpy.data.scenes['Scene'].render.views_format = 'MULTIVIEW'
+
+        add_new_camera('Camera_L', (0, 0, 10))
+        add_new_camera('Camera_R', (7.48, 6.5, 5.34))
+
+        bpy.ops.scene.render_view_add() # update the scene
+
     if args.cpu is False:
         # Blender changed the API for enabling CUDA at some point
         # bpy.context.user_preferences.system.compute_device_type = 'CUDA'
@@ -545,7 +573,8 @@ def render_scene(
         setup_scene(
             args, num_objects, output_index, output_split,
             output_image, output_scene)
-    print_camera_matrix()
+    print_camera_matrix('Camera')
+    print_camera_matrix('Camera_R')
     if args.random_camera:
         add_random_camera_motion(args.num_frames)
     if output_blendfile is not None and not os.path.exists(output_blendfile):
@@ -636,7 +665,7 @@ def get_4x4_RT_matrix_from_blender(cam):
     #      ))
     return RT
 
-def print_camera_matrix():
+def print_camera_matrix(camera_name='Camera'):
     # from
     # https://blender.stackexchange.com/questions/16472/how-can-i-get-the-cameras-projection-matrix
     # camera = bpy.data.objects['Camera']
@@ -650,8 +679,9 @@ def print_camera_matrix():
     # )
     # final_mat = projection_matrix * modelview_matrix
     # print('Overall camera matrix:', final_mat)
-    Intrinsics = get_calibration_matrix_K_from_blender(bpy.data.cameras['Camera'])
-    Extrinsics = get_4x4_RT_matrix_from_blender(bpy.data.objects['Camera'])
+    print('camera name: ', camera_name)
+    Intrinsics = get_calibration_matrix_K_from_blender(bpy.data.cameras[camera_name])
+    Extrinsics = get_4x4_RT_matrix_from_blender(bpy.data.objects[camera_name])
     
     print('Intrinsics matrix:', Intrinsics)
     print('Extrinsics matrix:', Extrinsics)

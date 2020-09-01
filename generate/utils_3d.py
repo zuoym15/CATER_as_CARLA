@@ -27,6 +27,11 @@ cam_T_world =  ([[  6.63005233e-01,   7.48614728e-01,   9.85652093e-09,  -1.1452
                  [ -6.59241557e-01,   5.83852530e-01,  -4.73832011e-01,   1.07452393e+01],
                  [  0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   1.00000000e+00]])
 
+# cam_T_world = ([[ -6.56495214e-01,   7.54330158e-01,  -6.09365181e-09,   7.43821359e-03],
+#                 [  3.58130813e-01,   3.11682045e-01,  -8.80111694e-01,  -4.95519886e-03],
+#                 [ -6.63894832e-01,  -5.77789128e-01,  -4.74766642e-01,   1.12568166e+01],
+#                 [  0.00000000e+00,   0.00000000e+00,  0.00000000e+00,   1.00000000e+00]])
+
                  
 
 # world_T_cam = np.array([(0.1791, 0.9838, -0.0014,  0.0000),
@@ -174,9 +179,10 @@ def show_pointcloud(xyz, color=None, x_lim=None, y_lim=None, z_lim=None):
 
 if __name__ == "__main__":
     base_dir = 'C://Users//zuoyi//Documents//GitHub//CATER_as_CARLA//output//images//CLEVR_new_000000'
-    # depth_img_name = 'Depth0000.jpg'
-    depth_img_name = 'Depth0000.exr'
-    rgb_img_name = 'RGB0000.jpg'
+    # frame_name = '0000_R'
+    frame_name = '0000'
+    depth_img_name = 'Depth%s.exr' % frame_name
+    rgb_img_name = 'RGB%s.jpg' % frame_name
 
     depth_img_name = os.path.join(base_dir, depth_img_name)
     rgb_img_name = os.path.join(base_dir, rgb_img_name)
