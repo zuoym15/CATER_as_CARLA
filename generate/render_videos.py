@@ -293,18 +293,22 @@ def main(args):
     scene_template = '%s%%0%dd.json' % (prefix, num_digits)
     blend_template = '%s%%0%dd.blend' % (prefix, num_digits)
     camera_info_template = '%s%%0%dd.json' % (prefix, num_digits)
+    object_info_template = '%s%%0%dd.json' % (prefix, num_digits)
     args.output_image_dir = os.path.join(args.output_dir, 'images')
     args.output_scene_dir = os.path.join(args.output_dir, 'scenes')
     args.output_blend_dir = os.path.join(args.output_dir, 'blend')
     args.output_camera_info_dir = os.path.join(args.output_dir, 'camera_info')
+    args.output_object_info_dir = os.path.join(args.output_dir, 'object_info')
     img_template = os.path.join(args.output_image_dir, img_template)
     scene_template = os.path.join(args.output_scene_dir, scene_template)
     blend_template = os.path.join(args.output_blend_dir, blend_template)
     camera_info_template = os.path.join(args.output_camera_info_dir, camera_info_template)
+    object_info_template = os.path.join(args.output_object_info_dir, object_info_template)
 
     mkdir_p(args.output_image_dir)
     mkdir_p(args.output_scene_dir)
     mkdir_p(args.output_camera_info_dir)
+    mkdir_p(args.output_object_info_dir)
 
     if args.save_blendfiles == 1 and not os.path.isdir(args.output_blend_dir):
         mkdir_p(args.output_blend_dir)
@@ -321,6 +325,7 @@ def main(args):
         if args.save_blendfiles == 1:
             blend_path = blend_template % (i + args.start_idx)
         camera_info_path = camera_info_template % (i + args.start_idx)
+        object_info_path = object_info_template % (i + args.start_idx)
         num_objects = random.randint(args.min_objects, args.max_objects)
         try:
             render_scene(
@@ -331,7 +336,8 @@ def main(args):
                 output_image=img_path,
                 output_scene=scene_path,
                 output_blendfile=blend_path,
-                camera_info_path=camera_info_path
+                camera_info_path=camera_info_path,
+                object_info_path=object_info_path
             )
         except Exception as e:
             if args.debug:
@@ -469,7 +475,8 @@ def render_scene(
         output_image='render.png',
         output_scene='render_json',
         output_blendfile=None,
-        camera_info_path=None
+        camera_info_path=None,
+        object_info_path=None
         ):
     # Load the main blendfile
     bpy.ops.wm.open_mainfile(filepath=args.base_scene_blendfile)
@@ -587,7 +594,8 @@ def render_scene(
 
     if camera_info_path is not None:
         save_camera_info(camera_info_path, active_camera_list)
-        print(camera_info_path)
+    if object_info_path is not None:
+        save_object_info(object_info_path)
 
     if args.random_camera:
         add_random_camera_motion(args.num_frames)
@@ -597,6 +605,18 @@ def render_scene(
     if args.render:
         # bpy.context.scene.render.resolution_percentage = 100
         bpy.ops.render.render(animation=True)
+        # pass
+
+def eul2rot(theta, degrees=True):
+    theta = np.array(theta)
+    if degrees:
+        theta = theta / 180.0 * np.pi
+
+    R = np.array([[np.cos(theta[1])*np.cos(theta[2]),       np.sin(theta[0])*np.sin(theta[1])*np.cos(theta[2]) - np.sin(theta[2])*np.cos(theta[0]),      np.sin(theta[1])*np.cos(theta[0])*np.cos(theta[2]) + np.sin(theta[0])*np.sin(theta[2])],
+                  [np.sin(theta[2])*np.cos(theta[1]),       np.sin(theta[0])*np.sin(theta[1])*np.sin(theta[2]) + np.cos(theta[0])*np.cos(theta[2]),      np.sin(theta[1])*np.sin(theta[2])*np.cos(theta[0]) - np.sin(theta[0])*np.cos(theta[2])],
+                  [-np.sin(theta[1]),                        np.sin(theta[0])*np.cos(theta[1]),                                                           np.cos(theta[0])*np.cos(theta[1])]])
+
+    return R
 
 def save_camera_info(camera_info_path, active_camera_list):
     dict_to_save = dict()
@@ -609,6 +629,48 @@ def save_camera_info(camera_info_path, active_camera_list):
     with open(camera_info_path, 'w') as outfile:
         json.dump(dict_to_save, outfile)
 
+def save_object_info(object_info_path):
+    obj_name_list = []
+    object_info_dict = dict()
+    for obj in bpy.data.objects:
+        if 'Sphere' in obj.name or 'Spl' in obj.name or 'Cylinder' in obj.name or 'Cone' in obj.name or 'Cube' in obj.name: # real objs
+            obj_name_list.append(obj.name)
+
+    for obj_name in obj_name_list: # save some frame irrelevant info
+        obj = bpy.data.objects[obj_name]
+        object_info_dict[obj_name] = dict()
+        object_info_dict[obj_name]['3d_dimensions'] = [obj.dimensions.x, obj.dimensions.y, obj.dimensions.z]
+        object_info_dict[obj_name]['world_T_obj'] = dict()
+
+    for frame in range(bpy.context.scene.frame_start, bpy.context.scene.frame_end+1):
+        bpy.context.scene.frame_set(frame)
+
+        for obj_name in obj_name_list:
+            obj = bpy.data.objects[obj_name]
+            location = [obj.location.x, obj.location.y, obj.location.z]
+            world_T_obj = np.array(obj.matrix_world.normalized()) # discard the scale part
+            obj_T_world = np.array(obj.matrix_world.normalized().inverted())
+
+            object_info_dict[obj_name]['world_T_obj'][str(frame)] = world_T_obj.tolist()
+
+    
+
+            # # if obj_name == obj_name_list[0]:
+            # if frame == 0:
+            #     print(location)
+            #     print(world_T_obj)
+            #     print(np.array(obj.matrix_world))
+            #     print(np.array(obj.bound_box))
+            #     l = [obj.dimensions.x, obj.dimensions.y, obj.dimensions.z]
+            #     print(l)
+            # bbox_corners_world = np.array([obj.matrix_world * Vector(corner) for corner in obj.bound_box]) # 8 x 3 array
+            # T = np.average(bbox_corners_world, axis=0)
+            # print(T) # ok this is the same as location
+
+    with open(object_info_path, 'w') as outfile:
+        json.dump(object_info_dict, outfile)
+
+    bpy.context.scene.frame_set(bpy.context.scene.frame_start) # reset
 
 # https://blender.stackexchange.com/questions/38009/3x4-camera-matrix-from-blender-camera
 def get_calibration_matrix_K_from_blender(camd):
@@ -862,7 +924,8 @@ def add_random_objects(scene_struct, num_objects, args, camera):
             r /= math.sqrt(2)
 
         # Choose random orientation for the object.
-        theta = 360.0 * random.random()
+        # theta = 360.0 * random.random()
+        theta = 2 * np.pi * random.random()
 
         # Actually add the object to the scene
         utils.add_object(args.shape_dir, obj_name, r, (x, y), theta=theta)
@@ -873,6 +936,22 @@ def add_random_objects(scene_struct, num_objects, args, camera):
         # Actually add material
         utils.add_material(mat_name, Color=rgba)
 
+        # get bbox corners in world coord
+        bbox_corners_world = np.array([obj.matrix_world * Vector(corner) for corner in obj.bound_box]) # 8 x 3 array
+
+        T = np.average(bbox_corners_world, axis=0) # len-3, xyz coord in world system
+
+        # try to create lrt 
+        l = [obj.dimensions.x, obj.dimensions.y, obj.dimensions.z]
+        
+        # R = eul2rot((0, 0, theta), degrees=True)
+        # lx, ly, lz = l
+        # xs = np.array([-lx/2., -lx/2., -lx/2., -lx/2., lx/2., lx/2., lx/2., lx/2.])[None, :] # 1 x 8
+        # ys = np.array([-ly/2., -ly/2., ly/2., ly/2., -ly/2., -ly/2., ly/2., ly/2.])[None, :]
+        # zs = np.array([-lz/2., lz/2., -lz/2., lz/2., -lz/2., lz/2., -lz/2., lz/2.])[None, :]
+        # xyzs_obj = np.concatenate([xs, ys, zs], axis=0) # 3 x 8
+        # xyzs_world = np.dot(R, xyzs) + T[:, None]
+
         # Record data about the object in the scene data structure
         pixel_coords = utils.get_camera_coords(camera, obj.location)
         objects.append({
@@ -881,6 +960,9 @@ def add_random_objects(scene_struct, num_objects, args, camera):
             'sized': r,
             'material': mat_name_out,
             '3d_coords': tuple(obj.location),
+            '3d_bbox': bbox_corners_world.tolist(),
+            '3d_size': l,
+            '3d_bbox_center': T.tolist(),
             'rotation': theta,
             'pixel_coords': pixel_coords,
             'color': color_name,

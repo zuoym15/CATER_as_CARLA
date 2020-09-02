@@ -130,7 +130,7 @@ def do_lim(xs, ys, zs, rgb=None, x_lim=None, y_lim=None, z_lim=None):
 
 
 
-def show_pointcloud(name, xyz, color=None, x_lim=None, y_lim=None, z_lim=None, top_view=True):
+def show_pointcloud(name, xyz, color=None, x_lim=None, y_lim=None, z_lim=None, top_view=True, bbox_info=None):
     def set_axes_equal(ax: plt.Axes):
         """Set 3D plot axes to equal scale.
 
@@ -177,45 +177,100 @@ def show_pointcloud(name, xyz, color=None, x_lim=None, y_lim=None, z_lim=None, t
     else:
         ax.scatter(xs, ys, zs, s=1)
 
+    if bbox_info is not None: # draw bbox
+        edge_combos = get_edge_combos()
+        for object_name, object_info in bbox_info.items():
+            lenlist = object_info['lenlist']
+            world_T_obj = object_info['world_T_obj']
+            bbox_corners = get_corners_world(lenlist, world_T_obj) # bbox corners in world coord, 4 x 8
+
+            for edge_combo in edge_combos:
+                ax.plot(bbox_corners[0, edge_combo], bbox_corners[1, edge_combo], bbox_corners[2, edge_combo], c='orange')
+
     set_axes_equal(ax)
 
-    
+def generate_gif(out_file_name, input_file_names):
+    images = []
+    for filename in input_file_names:
+        images.append(imageio.imread(filename))
+    imageio.mimsave(out_file_name, images)
+
+def load_camera_info(camera_file_name, camera_name):
+    with open(camera_file_name) as json_file:
+        camera_info = json.load(json_file)
+
+    pix_T_cam = np.array(camera_info[camera_name]['pix_T_cam'])
+    cam_T_world = np.array(camera_info[camera_name]['cam_T_world'])
+        
+    return pix_T_cam, cam_T_world
+
+def load_bbox_info(meta_file_name, frame_id):
+    dict_to_return = dict()
+    # json file
+    with open(meta_file_name) as json_file:
+        bbox_info = json.load(json_file)
+
+    for object_name, object_info in bbox_info.items():
+        lenlist = object_info['3d_dimensions']
+        world_T_obj = object_info["world_T_obj"][str(frame_id)]
+        dict_to_return[object_name] = dict()
+        dict_to_return[object_name]['lenlist'] = np.array(lenlist)
+        dict_to_return[object_name]['world_T_obj'] = np.array(world_T_obj)
+
+    return dict_to_return
+
+def get_corners_world(lenlist, world_T_obj):
+    lx = lenlist[0]
+    ly = lenlist[1]
+    lz = lenlist[2]
+    xs = np.array([-lx/2., -lx/2., -lx/2., -lx/2., lx/2., lx/2., lx/2., lx/2.]) # 1 x 8
+    ys = np.array([-ly/2., -ly/2., ly/2., ly/2., -ly/2., -ly/2., ly/2., ly/2.])
+    zs = np.array([-lz/2., lz/2., -lz/2., lz/2., -lz/2., lz/2., -lz/2., lz/2.])
+    ones = np.ones_like(xs)
+
+    corners_obj = np.stack((xs, ys, zs, ones), axis=0) # 4 x 8
+    corners_world = np.dot(world_T_obj, corners_obj)
+
+    return corners_world
+
+def get_edge_combos():
+    edge_combos = [[0, 1], [0, 2], [0, 4], [1, 3], [1, 5], [2, 3], [2, 6], [3, 7], [4, 5], [4, 6], [5, 7], [6, 7]]
+    return edge_combos
 
 if __name__ == "__main__":
-    import imageio
-    images = []
-    filenames = ['../output/Camera_L.png', '../output/Camera_R.png']
-    for filename in filenames:
-        images.append(imageio.imread(filename))
-    imageio.mimsave('../output/bev.gif', images)
-    # base_dir = 'C://Users//zuoyi//Documents//GitHub//CATER_as_CARLA//output//images//CLEVR_new_000000'
-    # camera_info_file = 'C://Users//zuoyi//Documents//GitHub//CATER_as_CARLA//output//camera_info//CLEVR_new_000000.json'
+    
+    base_dir = 'C://Users//zuoyi//Documents//GitHub//CATER_as_CARLA//output//images//CLEVR_new_000000'
+    camera_info_file = 'C://Users//zuoyi//Documents//GitHub//CATER_as_CARLA//output//camera_info//CLEVR_new_000000.json'
+    bbox_info_file = 'C://Users//zuoyi//Documents//GitHub//CATER_as_CARLA//output//object_info//CLEVR_new_000000.json'
     # with open(camera_info_file) as json_file:
     #     camera_info = json.load(json_file)
-    # # frame_names = ['0000', ]
-    # frame_names = ['0000_L', '0000_R']
-    # camera_names = ['Camera_L', 'Camera_R']
-    # for frame_name, camera_name in zip(frame_names, camera_names):
-    #     pix_T_cam = np.array(camera_info[camera_name]['pix_T_cam'])
-    #     cam_T_world = np.array(camera_info[camera_name]['cam_T_world'])
+    # frame_names = ['0000', ]
+    frame_id = 15
+    frame_names = [str(frame_id).zfill(4)+'_L', str(frame_id).zfill(4)+'_R']
+    camera_names = ['Camera_L', 'Camera_R']
+    bbox_info = load_bbox_info(bbox_info_file, frame_id)
+    for frame_name, camera_name in zip(frame_names, camera_names):
+        pix_T_cam, cam_T_world = load_camera_info(camera_info_file, camera_name)
+        # pix_T_cam = np.array(camera_info[camera_name]['pix_T_cam'])
+        # cam_T_world = np.array(camera_info[camera_name]['cam_T_world'])
         
-    #     depth_img_name = 'Depth%s.exr' % frame_name
-    #     rgb_img_name = 'RGB%s.jpg' % frame_name
+        depth_img_name = 'Depth%s.exr' % frame_name
+        rgb_img_name = 'RGB%s.jpg' % frame_name
 
-    #     depth_img_name = os.path.join(base_dir, depth_img_name)
-    #     rgb_img_name = os.path.join(base_dir, rgb_img_name)
+        depth_img_name = os.path.join(base_dir, depth_img_name)
+        rgb_img_name = os.path.join(base_dir, rgb_img_name)
 
-    #     depth = cv2.imread(depth_img_name, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)[:, :, 0]
+        depth = cv2.imread(depth_img_name, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)[:, :, 0]
 
-    #     rgb = load_image(rgb_img_name)
+        rgb = load_image(rgb_img_name)
 
-    #     xyz_cam = depth2pointcloud(depth, pix_T_cam)
-    #     world_T_cam = np.linalg.inv(cam_T_world)
-    #     xyz_world = np.dot(world_T_cam, xyz_cam)
+        xyz_cam = depth2pointcloud(depth, pix_T_cam)
+        world_T_cam = np.linalg.inv(cam_T_world)
+        xyz_world = np.dot(world_T_cam, xyz_cam)
 
-    #     show_pointcloud(camera_name, xyz_world, rgb, x_lim=[-5, 5], y_lim=[-5, 5])
+        show_pointcloud(camera_name, xyz_world, rgb, x_lim=[-5, 5], y_lim=[-5, 5], bbox_info=bbox_info)
 
-    # plt.show()
+    plt.show()
 
     
 
