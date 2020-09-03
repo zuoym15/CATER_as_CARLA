@@ -211,8 +211,8 @@ parser.add_argument(
          "rendering may achieve better performance using smaller tile sizes " +
          "while larger tile sizes may be optimal for GPU-based rendering.")
 parser.add_argument(
-    '--use_additional_camera', action='store_true',
-    help="this will add one additional camera to the scene")
+    '--num_cameras', default=1, type=int,
+    help="if >1, use multiview")
 
 # Video options
 parser.add_argument(
@@ -467,6 +467,24 @@ def add_new_camera(camera_name, location):
     bpy.data.objects[camera_name].constraints['Track To'].track_axis = 'TRACK_NEGATIVE_Z'
     bpy.data.objects[camera_name].constraints['Track To'].up_axis = 'UP_Y'
 
+def sample_camera_poses(num_samples, radius=12, elev=30, distribution='uniform'):
+    samples = []
+    if distribution == 'uniform':
+        azs = np.arange(num_samples) * 360.0 / num_samples # uniformly sample on the sphere
+        elev = elev*np.pi/180.0 # to rad
+        azs = azs*np.pi/180.0 # to rad
+
+        for az in azs:
+            x = np.cos(elev) * np.cos(az) * radius
+            y = np.cos(elev) * np.sin(az) * radius
+            z = np.sin(elev) * radius
+            samples.append((x, y, z))
+
+        return samples
+
+    else:
+        return None
+
 def render_scene(
         args,
         num_objects=5,
@@ -531,16 +549,30 @@ def render_scene(
     # links.new(map_value_node.outputs['Value'], output_file_node.inputs['Image'])
     links.new(rl.outputs[2], output_file_node.inputs['Image'])
 
-    if args.use_additional_camera is True:
+    if args.num_cameras > 1:
+        camera_poses = sample_camera_poses(num_samples=args.num_cameras)
+        active_camera_list = []
         bpy.data.scenes['Scene'].render.use_multiview = True
         bpy.data.scenes['Scene'].render.views_format = 'MULTIVIEW'
-
-        add_new_camera('Camera_L', (7.48, -6.5, 5.34))
-        add_new_camera('Camera_R', (7.48, 6.5, 5.34))
-
+        bpy.data.scenes['Scene'].render.views['left'].use = False
+        bpy.data.scenes['Scene'].render.views['right'].use = False
         bpy.ops.scene.render_view_add() # update the scene
         bpy.data.scenes['Scene'].render.views['RenderView'].use = False # disable default cam
-        active_camera_list = ['Camera_L', 'Camera_R']
+        # disable 
+
+        for i in range(1, args.num_cameras+1):
+            bpy.ops.scene.render_view_add()
+            current_view_name = 'RenderView' + '.' + str(i).zfill(3) # e.g. RenderView.001
+            bpy.data.scenes['Scene'].render.views[current_view_name].camera_suffix = '_'+str(i) # e.g._1
+            add_new_camera('Camera_'+str(i), camera_poses[i-1])
+            active_camera_list.append('Camera_'+str(i))
+
+        # add_new_camera('Camera_L', (7.48, -6.5, 5.34))
+        # add_new_camera('Camera_R', (7.48, 6.5, 5.34))
+
+        # bpy.ops.scene.render_view_add() # update the scene
+        # bpy.data.scenes['Scene'].render.views['RenderView'].use = False # disable default cam
+        # active_camera_list = ['Camera_L', 'Camera_R']
     else:
         active_camera_list = ['Camera']
 

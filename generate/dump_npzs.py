@@ -23,8 +23,9 @@ mod = 'aa' # dump traj
 MODE = 'traj' # one view
 # MODE = 'multiview' # one frame
 
-CAMERA_NAMES = ['Camera_L', 'Camera_R'] 
-TOTAL_NUM_FRAME = 50
+NUM_CAMERAS = 6
+CAMERA_NAMES = ['Camera_'+str(i) for i in range(1, NUM_CAMERAS+1)] 
+TOTAL_NUM_FRAME = 100
 MAX_OBJECTS = 10
 
 dump_base_dir = '../npzs'
