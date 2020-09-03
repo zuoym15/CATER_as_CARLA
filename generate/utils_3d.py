@@ -46,14 +46,14 @@ def img2depth(img):
         img = img[:, :, 0] # 3 channels are the same
     return img2depth_scale_factor*img
 
-def load_image(img_dir):
-    img = imageio.imread(img_dir) / 255.0 # normalize to [0,1]
+def load_image(img_dir, normalize=True):
+    img = imageio.imread(img_dir)
+    if normalize:
+        img = img / 255.0 # normalize to [0,1]
     return img
 
-def unp_depth(depth, cam_T_world, pix_T_cam):
-    # cam_T_world and pix_T_cam are 4x4 matrix
-    # depth is a H x W tensor
-    pass
+def load_depth(img_dir):
+    return cv2.imread(img_dir, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)[:, :, 0]
 
 # def meshgrid2d(H, W):
 #     x = np.linspace(0, H, H)
@@ -189,6 +189,20 @@ def show_pointcloud(name, xyz, color=None, x_lim=None, y_lim=None, z_lim=None, t
 
     set_axes_equal(ax)
 
+def preprocess_bbox_info(bbox_info):
+    # lrt list is N x 19
+    num_objects = 0
+    lrtlist = []
+    for object_name, object_info in bbox_info.items():
+        num_objects += 1
+        lenlist = object_info['lenlist']
+        world_T_obj = object_info['world_T_obj'] # 4x4
+        lrtlist_obj = np.concatenate([lenlist, world_T_obj.flatten()]) # len-19
+        lrtlist.append(lrtlist_obj)
+
+    lrtlist = np.array(lrtlist)
+    return num_objects, lrtlist
+
 def generate_gif(out_file_name, input_file_names):
     images = []
     for filename in input_file_names:
@@ -237,6 +251,9 @@ def get_edge_combos():
     edge_combos = [[0, 1], [0, 2], [0, 4], [1, 3], [1, 5], [2, 3], [2, 6], [3, 7], [4, 5], [4, 6], [5, 7], [6, 7]]
     return edge_combos
 
+def generate_seq_dump_file_name(seq_len, video_name, cam_name, start_frame=0):
+    return video_name + '_S' + str(seq_len) + '_cam' + cam_name + '_startframe' + str(start_frame) + '.npz' 
+
 if __name__ == "__main__":
     
     base_dir = 'C://Users//zuoyi//Documents//GitHub//CATER_as_CARLA//output//images//CLEVR_new_000000'
@@ -260,7 +277,7 @@ if __name__ == "__main__":
         depth_img_name = os.path.join(base_dir, depth_img_name)
         rgb_img_name = os.path.join(base_dir, rgb_img_name)
 
-        depth = cv2.imread(depth_img_name, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)[:, :, 0]
+        depth = load_depth(depth_img_name)
 
         rgb = load_image(rgb_img_name)
 
