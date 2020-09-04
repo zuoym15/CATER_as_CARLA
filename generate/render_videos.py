@@ -134,6 +134,9 @@ parser.add_argument(
     '--output_dir', default='../output/',
     help="The directory where output images will be stored. It will be " +
          "created if it does not exist.")
+parser.add_argument(
+    '--mod', default='aa',
+    help="for version control")
 # parser.add_argument(
 #     '--output_image_dir', default='../output/images/',
 #     help="The directory where output images will be stored. It will be " +
@@ -286,6 +289,10 @@ def unlock(fpath):
 
 
 def main(args):
+    # manage the version here
+    if args.output_dir == '../output/': # change the default value
+        args.output_dir = '../' + args.mod + '_s' + str(args.num_frames) + '_c' + str(args.num_cameras) + '_m' + str(args.max_motions)
+
     num_digits = 6
     prefix = '%s_%s_' % (args.filename_prefix, args.split)
     # img_template = '%s%%0%dd.avi' % (prefix, num_digits)
@@ -350,21 +357,21 @@ def main(args):
 
     # After rendering all images, combine the JSON files for each scene into a
     # single JSON file.
-    all_scenes = []
-    for scene_path in all_scene_paths:
-        with open(scene_path, 'r') as f:
-            all_scenes.append(json.load(f))
-    output = {
-        'info': {
-            'date': args.date,
-            'version': args.version,
-            'split': args.split,
-            'license': args.license,
-        },
-        'scenes': all_scenes
-    }
-    with open(args.output_scene_file, 'w') as f:
-        json.dump(output, f)
+    # all_scenes = []
+    # for scene_path in all_scene_paths:
+    #     with open(scene_path, 'r') as f:
+    #         all_scenes.append(json.load(f))
+    # output = {
+    #     'info': {
+    #         'date': args.date,
+    #         'version': args.version,
+    #         'split': args.split,
+    #         'license': args.license,
+    #     },
+    #     'scenes': all_scenes
+    # }
+    # with open(args.output_scene_file, 'w') as f:
+    #     json.dump(output, f)
 
 
 def rand(L):

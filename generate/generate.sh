@@ -1,1 +1,1 @@
-CUDA_VISIBLE_DEVICES="0" blender --background --python render_videos.py -- --num_images 1 --suppress_blender_logs --save_blendfiles 1 --max_motions=2 --debug --num_frames 100 --num_cameras 6
+CUDA_VISIBLE_DEVICES="0" blender --background --python render_videos.py -- --num_images 100 --suppress_blender_logs --save_blendfiles 1 --debug --num_frames 300 --num_cameras 6 --max_motions 10 --mod aa

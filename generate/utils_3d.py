@@ -266,28 +266,34 @@ if __name__ == "__main__":
     frame_names = [str(frame_id).zfill(4)+'_L', str(frame_id).zfill(4)+'_R']
     camera_names = ['Camera_L', 'Camera_R']
     bbox_info = load_bbox_info(bbox_info_file, frame_id)
-    for frame_name, camera_name in zip(frame_names, camera_names):
-        pix_T_cam, cam_T_world = load_camera_info(camera_info_file, camera_name)
-        # pix_T_cam = np.array(camera_info[camera_name]['pix_T_cam'])
-        # cam_T_world = np.array(camera_info[camera_name]['cam_T_world'])
+
+    img_dir = []
+    for frame in range(50):
+        img_dir.append(os.path.join(base_dir, 'RGB%s_1.jpg' % str(frame).zfill(4)))
+
+    generate_gif('video.gif', img_dir)
+    # for frame_name, camera_name in zip(frame_names, camera_names):
+    #     pix_T_cam, cam_T_world = load_camera_info(camera_info_file, camera_name)
+    #     # pix_T_cam = np.array(camera_info[camera_name]['pix_T_cam'])
+    #     # cam_T_world = np.array(camera_info[camera_name]['cam_T_world'])
         
-        depth_img_name = 'Depth%s.exr' % frame_name
-        rgb_img_name = 'RGB%s.jpg' % frame_name
+    #     depth_img_name = 'Depth%s.exr' % frame_name
+    #     rgb_img_name = 'RGB%s.jpg' % frame_name
 
-        depth_img_name = os.path.join(base_dir, depth_img_name)
-        rgb_img_name = os.path.join(base_dir, rgb_img_name)
+    #     depth_img_name = os.path.join(base_dir, depth_img_name)
+    #     rgb_img_name = os.path.join(base_dir, rgb_img_name)
 
-        depth = load_depth(depth_img_name)
+    #     depth = load_depth(depth_img_name)
 
-        rgb = load_image(rgb_img_name)
+    #     rgb = load_image(rgb_img_name)
 
-        xyz_cam = depth2pointcloud(depth, pix_T_cam)
-        world_T_cam = np.linalg.inv(cam_T_world)
-        xyz_world = np.dot(world_T_cam, xyz_cam)
+    #     xyz_cam = depth2pointcloud(depth, pix_T_cam)
+    #     world_T_cam = np.linalg.inv(cam_T_world)
+    #     xyz_world = np.dot(world_T_cam, xyz_cam)
 
-        show_pointcloud(camera_name, xyz_world, rgb, x_lim=[-5, 5], y_lim=[-5, 5], bbox_info=bbox_info)
+    #     show_pointcloud(camera_name, xyz_world, rgb, x_lim=[-5, 5], y_lim=[-5, 5], bbox_info=bbox_info)
 
-    plt.show()
+    # plt.show()
 
     
 
