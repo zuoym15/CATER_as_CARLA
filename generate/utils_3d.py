@@ -251,8 +251,11 @@ def get_edge_combos():
     edge_combos = [[0, 1], [0, 2], [0, 4], [1, 3], [1, 5], [2, 3], [2, 6], [3, 7], [4, 5], [4, 6], [5, 7], [6, 7]]
     return edge_combos
 
-def generate_seq_dump_file_name(seq_len, video_name, cam_name, start_frame=0):
-    return video_name + '_S' + str(seq_len) + '_cam' + cam_name + '_startframe' + str(start_frame) + '.npz' 
+def generate_seq_dump_file_name(seq_len, video_name, cam_names, start_frame=0):
+    cam_name_str = '_cam'
+    for cam_name in cam_names:
+        cam_name_str = cam_name_str + '_' + cam_name
+    return video_name + '_S' + str(seq_len) + cam_name_str + '_startframe' + str(start_frame) + '.npz' 
 
 if __name__ == "__main__":
     
