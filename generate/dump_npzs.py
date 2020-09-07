@@ -6,6 +6,9 @@ import os
 import argparse
 import itertools
 
+mod = 'aa' # beta
+mod = 'ab' # traj data, s100
+
 def find_all_files(dir, extension='.json'):
     file_list = []
     for file in os.listdir(dir):
@@ -28,8 +31,6 @@ def get_intervals(range_max, S):
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    '--mod', default='aa', help="npzs version control. e.g. 'aa'")
-parser.add_argument(
     '--seq_len', default=8, type=int,
     help="Sequence length for the npzs. when writing multiview data this is the number of cameras")
 parser.add_argument(
@@ -44,8 +45,6 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-
-mod = args.mod # dump traj
 data_format = args.data_format
 
 
