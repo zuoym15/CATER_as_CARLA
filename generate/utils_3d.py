@@ -90,7 +90,7 @@ def depth2pointcloud(depth, pix_T_cam, downsample_factor=1.0):
         fy = fy * downsample_factor
         x0 = x0 * downsample_factor
         y0 = y0 * downsample_factor
-        depth = cv2.resize(depth, None, fx=downsample_factor, fy=downsample_factor)
+        depth = cv2.resize(depth, None, fx=downsample_factor, fy=downsample_factor, interpolation=cv2.INTER_NEAREST)
 
     H, W = depth.shape
     y, x = meshgrid2D(H, W)

@@ -7,7 +7,8 @@ import argparse
 import itertools
 
 mod = 'aa' # beta
-mod = 'ab' # traj data, s100
+mod = 'ab' # traj data, s8
+mod = 'ac' # multiview data, s6
 
 def find_all_files(dir, extension='.json'):
     file_list = []
@@ -15,6 +16,8 @@ def find_all_files(dir, extension='.json'):
         if file.endswith(extension):
             # file_list.append(os.path.join(dir, file))
             file_list.append(file.split('.')[0]) # discard extension, should return "CLEVR_new_000000"
+
+    file_list.sort()
 
     return file_list
 
@@ -41,6 +44,10 @@ parser.add_argument(
     '--output_dir', default='../output', help="where the raw data are stored")
 parser.add_argument(
     '--depth_downsample_factor', type=float, default=0.5, help="set this number smaller than 1.0 to downsample the pointcloud")
+parser.add_argument(
+    '--camera_to_use', nargs='+')
+parser.add_argument(
+    '--number_of_videos_to_use', type=int, default=-1, help="if negative, use all videos in output_dir")
 
 args = parser.parse_args()
 
@@ -49,7 +56,10 @@ data_format = args.data_format
 
 NUM_CAMERAS = 6
 # NUM_CAMERAS = 2
-CAMERA_NAMES = ['Camera_'+str(i) for i in range(1, NUM_CAMERAS+1)] 
+if args.camera_to_use is None: # use all cams as default
+    CAMERA_NAMES = ['Camera_'+str(i) for i in range(1, NUM_CAMERAS+1)] 
+else:
+    CAMERA_NAMES = args.camera_to_use
 TOTAL_NUM_FRAME = 300
 # TOTAL_NUM_FRAME = 50
 MAX_OBJECTS = 10
@@ -81,12 +91,15 @@ output_object_info_dir = os.path.join(output_dir, 'object_info')
 
 # find all files
 video_list = find_all_files(output_scene_dir)
+if args.number_of_videos_to_use > 0:
+    video_list = video_list[:args.number_of_videos_to_use]
+
 for video_id in range(len(video_list)):
     video_name = video_list[video_id]
     camera_info_file = os.path.join(output_camera_info_dir, video_name+'.json')
     bbox_info_file = os.path.join(output_object_info_dir, video_name+'.json')
 
-    print('processing video {}/{}'.format(video_id+1, len(video_list)))
+    print('processing video {}/{}, video_name: {}'.format(video_id+1, len(video_list), video_name))
 
     if data_format == 'traj':
         # S is the sequence dim
@@ -100,6 +113,12 @@ for video_id in range(len(video_list)):
 
             for interval in timestep_intervals:
                 print('processing interval: ', interval)
+                dump_file_name = utils_3d.generate_seq_dump_file_name(args.seq_len, video_name, [camera_name, ], start_frame=interval[0])
+                dump_file_name = os.path.join(dump_folder_dir, dump_file_name)
+
+                if os.path.isfile(dump_file_name):
+                    print('file already exist. skip this')
+                    continue
                 # initialize
                 pix_T_camXs_list = []
                 rgb_camXs_list = []
@@ -163,9 +182,6 @@ for video_id in range(len(video_list)):
                     'world_T_camR': world_T_camR_list
                 }
 
-                dump_file_name = utils_3d.generate_seq_dump_file_name(args.seq_len, video_name, [camera_name, ], start_frame=interval[0])
-                dump_file_name = os.path.join(dump_folder_dir, dump_file_name)
-
                 np.savez(dump_file_name, **dict_to_save)
 
     elif data_format == 'multiview':
@@ -191,6 +207,14 @@ for video_id in range(len(video_list)):
             camera_combos = itertools.combinations(CAMERA_NAMES, args.seq_len)
             for camera_combo in camera_combos:
                 print('processing view: ', camera_combo)
+
+                dump_file_name = utils_3d.generate_seq_dump_file_name(1, video_name, camera_combo, start_frame=frame_id)
+                dump_file_name = os.path.join(dump_folder_dir, dump_file_name)
+
+                if os.path.isfile(dump_file_name):
+                    print('file already exist. skip this')
+                    continue
+
                 pix_T_camXs_list = []
                 rgb_camXs_list = []
                 xyz_camXs_list = []
@@ -237,9 +261,6 @@ for video_id in range(len(video_list)):
                     'scorelist': scorelist_list,
                     'world_T_camR': world_T_camR_list
                 }
-
-                dump_file_name = utils_3d.generate_seq_dump_file_name(1, video_name, camera_combo, start_frame=frame_id)
-                dump_file_name = os.path.join(dump_folder_dir, dump_file_name)
 
                 np.savez(dump_file_name, **dict_to_save)
 
