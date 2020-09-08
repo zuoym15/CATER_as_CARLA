@@ -1,1 +1,0 @@
-python dump_npzs.py --seq_len 10 --dump_base_dir /projects/katefgroup/datasets/cater/npzs/ --output_dir /projects/katefgroup/datasets/cater/raw/aa_s300_c6_m10/ --number_of_videos_to_use 70

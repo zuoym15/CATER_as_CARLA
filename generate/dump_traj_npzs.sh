@@ -3,12 +3,13 @@
 DATA_DIR="/projects/katefgroup/datasets/cater/raw/aa_s300_c6_m10/"
 OUT_DIR="/projects/katefgroup/datasets/cater/npzs/"
 
-DATA_FORMAT="multiview"
+DATA_FORMAT="traj"
 
-SEQLEN=6
+SEQLEN=100
 # INCR=1
 
-MOD="ac" # generate multiview data
+MOD="ab" # generate traj data
+MOD="ac" # S 100
 
 # OUT_DIR="/projects/katefgroup/datasets/carla/processed/npzs/surveil_multiview_${MOD}_s${SEQLEN}_i${INCR}"
 # mkdir -p ${OUT_DIR}
