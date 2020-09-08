@@ -46,8 +46,10 @@ def img2depth(img):
         img = img[:, :, 0] # 3 channels are the same
     return img2depth_scale_factor*img
 
-def load_image(img_dir, normalize=True):
+def load_image(img_dir, normalize=True, downsample_factor=1.0):
     img = imageio.imread(img_dir)
+    if downsample_factor != 1.0:
+        img = cv2.resize(img, None, fx=downsample_factor, fy=downsample_factor)
     if normalize:
         img = img / 255.0 # normalize to [0,1]
     return img
@@ -80,10 +82,18 @@ def split_intrinsics(K):
     y0 = K[1,2]
     return fx, fy, x0, y0
 
-def depth2pointcloud(depth, pix_T_cam):
+def depth2pointcloud(depth, pix_T_cam, downsample_factor=1.0):
+    fx, fy, x0, y0 = split_intrinsics(pix_T_cam)
+
+    if downsample_factor != 1.0: # reshape intrinsics and depth
+        fx = fx * downsample_factor
+        fy = fy * downsample_factor
+        x0 = x0 * downsample_factor
+        y0 = y0 * downsample_factor
+        depth = cv2.resize(depth, None, fx=downsample_factor, fy=downsample_factor)
+
     H, W = depth.shape
     y, x = meshgrid2D(H, W)
-    fx, fy, x0, y0 = split_intrinsics(pix_T_cam)
 
     # unproject
     x = (depth/fx)*(x-x0)
@@ -266,37 +276,39 @@ if __name__ == "__main__":
     #     camera_info = json.load(json_file)
     # frame_names = ['0000', ]
     frame_id = 15
-    frame_names = [str(frame_id).zfill(4)+'_L', str(frame_id).zfill(4)+'_R']
-    camera_names = ['Camera_L', 'Camera_R']
+    frame_names = [str(frame_id).zfill(4)]
+    camera_names = ['Camera']
     bbox_info = load_bbox_info(bbox_info_file, frame_id)
 
-    img_dir = []
-    for frame in range(50):
-        img_dir.append(os.path.join(base_dir, 'RGB%s_1.jpg' % str(frame).zfill(4)))
+    downsample_factor = 0.5
 
-    generate_gif('video.gif', img_dir)
-    # for frame_name, camera_name in zip(frame_names, camera_names):
-    #     pix_T_cam, cam_T_world = load_camera_info(camera_info_file, camera_name)
-    #     # pix_T_cam = np.array(camera_info[camera_name]['pix_T_cam'])
-    #     # cam_T_world = np.array(camera_info[camera_name]['cam_T_world'])
+    # img_dir = []
+    # for frame in range(50):
+    #     img_dir.append(os.path.join(base_dir, 'RGB%s_1.jpg' % str(frame).zfill(4)))
+
+    # generate_gif('video.gif', img_dir)
+    for frame_name, camera_name in zip(frame_names, camera_names):
+        pix_T_cam, cam_T_world = load_camera_info(camera_info_file, camera_name)
+        # pix_T_cam = np.array(camera_info[camera_name]['pix_T_cam'])
+        # cam_T_world = np.array(camera_info[camera_name]['cam_T_world'])
         
-    #     depth_img_name = 'Depth%s.exr' % frame_name
-    #     rgb_img_name = 'RGB%s.jpg' % frame_name
+        depth_img_name = 'Depth%s.exr' % frame_name
+        rgb_img_name = 'RGB%s.jpg' % frame_name
 
-    #     depth_img_name = os.path.join(base_dir, depth_img_name)
-    #     rgb_img_name = os.path.join(base_dir, rgb_img_name)
+        depth_img_name = os.path.join(base_dir, depth_img_name)
+        rgb_img_name = os.path.join(base_dir, rgb_img_name)
 
-    #     depth = load_depth(depth_img_name)
+        depth = load_depth(depth_img_name)
 
-    #     rgb = load_image(rgb_img_name)
+        rgb = load_image(rgb_img_name, downsample_factor=downsample_factor)
 
-    #     xyz_cam = depth2pointcloud(depth, pix_T_cam)
-    #     world_T_cam = np.linalg.inv(cam_T_world)
-    #     xyz_world = np.dot(world_T_cam, xyz_cam)
+        xyz_cam = depth2pointcloud(depth, pix_T_cam, downsample_factor=downsample_factor)
+        world_T_cam = np.linalg.inv(cam_T_world)
+        xyz_world = np.dot(world_T_cam, xyz_cam)
 
-    #     show_pointcloud(camera_name, xyz_world, rgb, x_lim=[-5, 5], y_lim=[-5, 5], bbox_info=bbox_info)
+        show_pointcloud(camera_name, xyz_world, rgb, x_lim=[-5, 5], y_lim=[-5, 5], bbox_info=bbox_info)
 
-    # plt.show()
+    plt.show()
 
     
 

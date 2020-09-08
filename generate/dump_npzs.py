@@ -39,9 +39,8 @@ parser.add_argument(
     '--dump_base_dir', default='../npzs', help="where to store the npzs")
 parser.add_argument(
     '--output_dir', default='../output', help="where the raw data are stored")
-
-
-
+parser.add_argument(
+    '--depth_downsample_factor', type=float, default=0.5, help="set this number smaller than 1.0 to downsample the pointcloud")
 
 args = parser.parse_args()
 
@@ -92,6 +91,7 @@ for video_id in range(len(video_list)):
     if data_format == 'traj':
         # S is the sequence dim
         for camera_name in CAMERA_NAMES: # save a different file for each view
+            print('processing view: {}'.format(camera_name))
             # load frame irrelevant info
             pix_T_camXs, camXs_T_world = utils_3d.load_camera_info(camera_info_file, camera_name)
             world_T_camXs = np.linalg.inv(camXs_T_world)
@@ -99,6 +99,7 @@ for video_id in range(len(video_list)):
             timestep_intervals = get_intervals(TOTAL_NUM_FRAME, args.seq_len)
 
             for interval in timestep_intervals:
+                print('processing interval: ', interval)
                 # initialize
                 pix_T_camXs_list = []
                 rgb_camXs_list = []
@@ -117,7 +118,7 @@ for video_id in range(len(video_list)):
 
                     rgb_camXs = utils_3d.load_image(rgb_img_name, normalize=False) # keep value in [0, 255]
                     depth = utils_3d.load_depth(depth_img_name)
-                    xyz_camXs_raw = utils_3d.depth2pointcloud(depth, pix_T_camXs) # 4 x N
+                    xyz_camXs_raw = utils_3d.depth2pointcloud(depth, pix_T_camXs, downsample_factor=args.depth_downsample_factor) # 4 x N
                     xyz_camXs = np.transpose(xyz_camXs_raw)[:, 0:3]
 
                     # load bbox info
@@ -145,7 +146,7 @@ for video_id in range(len(video_list)):
                     world_T_camR_list.append(world_T_camR)
 
                 pix_T_camXs_list = np.array(pix_T_camXs_list, dtype=np.float32)
-                rgb_camXs_list = np.array(rgb_camXs_list, dtype=np.float32)
+                rgb_camXs_list = np.array(rgb_camXs_list, dtype=np.uint8)
                 xyz_camXs_list = np.array(xyz_camXs_list, dtype=np.float32)
                 world_T_camXs_list = np.array(world_T_camXs_list, dtype=np.float32)
                 lrt_traj_world_list = np.array(lrt_traj_world_list, dtype=np.float32)
@@ -170,6 +171,7 @@ for video_id in range(len(video_list)):
     elif data_format == 'multiview':
         assert args.seq_len == NUM_CAMERAS # shall not write different combos. we can do random selection in dataloader
         for frame_id in range(TOTAL_NUM_FRAME):
+            print('processing frame: {}'.format(frame_id))
             # load some camera irrlevant information
             bbox_info = utils_3d.load_bbox_info(bbox_info_file, frame_id)
             num_objects, lrtlist = utils_3d.preprocess_bbox_info(bbox_info)
@@ -188,6 +190,7 @@ for video_id in range(len(video_list)):
 
             camera_combos = itertools.combinations(CAMERA_NAMES, args.seq_len)
             for camera_combo in camera_combos:
+                print('processing view: ', camera_combo)
                 pix_T_camXs_list = []
                 rgb_camXs_list = []
                 xyz_camXs_list = []
@@ -206,7 +209,7 @@ for video_id in range(len(video_list)):
 
                     rgb_camXs = utils_3d.load_image(rgb_img_name, normalize=False) # keep value in [0, 255]
                     depth = utils_3d.load_depth(depth_img_name)
-                    xyz_camXs_raw = utils_3d.depth2pointcloud(depth, pix_T_camXs) # 4 x N
+                    xyz_camXs_raw = utils_3d.depth2pointcloud(depth, pix_T_camXs, downsample_factor=args.depth_downsample_factor) # 4 x N
                     xyz_camXs = np.transpose(xyz_camXs_raw)[:, 0:3]
 
                     pix_T_camXs_list.append(pix_T_camXs)
@@ -218,7 +221,7 @@ for video_id in range(len(video_list)):
                     world_T_camR_list.append(world_T_camR)
 
                 pix_T_camXs_list = np.array(pix_T_camXs_list, dtype=np.float32)
-                rgb_camXs_list = np.array(rgb_camXs_list, dtype=np.float32)
+                rgb_camXs_list = np.array(rgb_camXs_list, dtype=np.uint8)
                 xyz_camXs_list = np.array(xyz_camXs_list, dtype=np.float32)
                 world_T_camXs_list = np.array(world_T_camXs_list, dtype=np.float32)
                 lrt_traj_world_list = np.array(lrt_traj_world_list, dtype=np.float32)

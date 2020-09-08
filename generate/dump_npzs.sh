@@ -1,0 +1,1 @@
+python dump_npzs.py --seq_len 8 --dump_base_dir /projects/katefgroup/datasets/cater/npzs/ --output_dir /projects/katefgroup/datasets/cater/raw/aa_s300_c6_m10/
