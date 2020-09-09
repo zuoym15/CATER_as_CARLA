@@ -5,11 +5,12 @@ OUT_DIR="/projects/katefgroup/datasets/cater/npzs/"
 
 DATA_FORMAT="traj"
 
-SEQLEN=100
+SEQLEN=10
 # INCR=1
 
 MOD="ab" # generate traj data
 MOD="ac" # S 100
+MOD="ad" # valid lrt_list for invalid objects
 
 # OUT_DIR="/projects/katefgroup/datasets/carla/processed/npzs/surveil_multiview_${MOD}_s${SEQLEN}_i${INCR}"
 # mkdir -p ${OUT_DIR}

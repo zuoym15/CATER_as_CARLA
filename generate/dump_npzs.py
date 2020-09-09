@@ -144,8 +144,14 @@ for video_id in range(len(video_list)):
                     num_objects, lrtlist = utils_3d.preprocess_bbox_info(bbox_info)
 
                     lrt_traj_world = np.zeros((MAX_OBJECTS, 19))
+                    # initialize as a unit cube at center
+                    lrt_traj_world[:, 0:3] = 1.0 # set length=1
+                    lrt_traj_world[:, 3:] = (np.eye(4).reshape(-1)[None, :]).repeat(MAX_OBJECTS, axis=0) # set RT to indentity transformation
+
                     scorelist = np.zeros(MAX_OBJECTS)
                     lrt_traj_world[:num_objects, :] = lrtlist
+                    lrt_traj_world[num_objects:, 0:3] = 1.0 
+
                     scorelist[:num_objects] = 1.0
 
                     # define camR here
