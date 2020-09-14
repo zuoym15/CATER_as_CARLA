@@ -46,12 +46,15 @@ parser.add_argument(
     '--camera_to_use', nargs='+')
 parser.add_argument(
     '--number_of_videos_to_use', type=int, default=-1, help="if negative, use all videos in output_dir")
+parser.add_argument(
+    '--pointcloud_size', type=int, default=10000, help="number of points per scene. downsample to make npzs smaller")
 
 args = parser.parse_args()
 
 data_format = args.data_format
 mod = args.mod
 
+np.random.seed(0)
 
 NUM_CAMERAS = 6
 # NUM_CAMERAS = 2
@@ -137,7 +140,11 @@ for video_id in range(len(video_list)):
                     rgb_camXs = utils_3d.load_image(rgb_img_name, normalize=False) # keep value in [0, 255]
                     depth = utils_3d.load_depth(depth_img_name)
                     xyz_camXs_raw = utils_3d.depth2pointcloud(depth, pix_T_camXs, downsample_factor=args.depth_downsample_factor) # 4 x N
-                    xyz_camXs = np.transpose(xyz_camXs_raw)[:, 0:3]
+                    xyz_camXs = np.transpose(xyz_camXs_raw)[:, 0:3] # N x 3
+
+                    if xyz_camXs.shape[0] > args.pointcloud_size:
+                        random_id = np.random.choice(range(xyz_camXs.shape[0]), size=args.pointcloud_size, replace=False)
+                        xyz_camXs = xyz_camXs[random_id, :]
 
                     # load bbox info
                     bbox_info = utils_3d.load_bbox_info(bbox_info_file, frame_id)
@@ -240,6 +247,10 @@ for video_id in range(len(video_list)):
                     depth = utils_3d.load_depth(depth_img_name)
                     xyz_camXs_raw = utils_3d.depth2pointcloud(depth, pix_T_camXs, downsample_factor=args.depth_downsample_factor) # 4 x N
                     xyz_camXs = np.transpose(xyz_camXs_raw)[:, 0:3]
+
+                    if xyz_camXs.shape[0] > args.pointcloud_size:
+                        random_id = np.random.choice(range(xyz_camXs.shape[0]), size=args.pointcloud_size, replace=False)
+                        xyz_camXs = xyz_camXs[random_id, :]
 
                     pix_T_camXs_list.append(pix_T_camXs)
                     rgb_camXs_list.append(rgb_camXs)

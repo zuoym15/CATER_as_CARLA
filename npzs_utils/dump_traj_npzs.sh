@@ -5,12 +5,11 @@ OUT_DIR="/projects/katefgroup/datasets/cater/npzs/"
 
 DATA_FORMAT="traj"
 
-SEQLEN=10
+SEQLEN=100
 # INCR=1
 
 MOD="ab" # generate traj data
-MOD="ac" # S 100
-MOD="ad" # valid lrt_list for invalid objects
+MOD="ac" # downsample pointcloud to 10k per scene
 
 # OUT_DIR="/projects/katefgroup/datasets/carla/processed/npzs/surveil_multiview_${MOD}_s${SEQLEN}_i${INCR}"
 # mkdir -p ${OUT_DIR}
