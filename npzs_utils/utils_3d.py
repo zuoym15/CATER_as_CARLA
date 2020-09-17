@@ -267,6 +267,42 @@ def generate_seq_dump_file_name(seq_len, video_name, cam_names, start_frame=0):
         cam_name_str = cam_name_str + '_' + cam_name
     return video_name + '_S' + str(seq_len) + cam_name_str + '_startframe' + str(start_frame) + '.npz' 
 
+def split_lrtlist(lrtlist):
+    N, D = lrtlist.shape
+    assert D==19
+    lenlist = lrtlist[:,0:3]
+    rt_list = lrtlist[:, 3:]
+    rt_list = np.reshape(rt_list, (N, 4, 4))
+    r_list = rt_list[:, 0:3, 0:3] # N x 3 x 3
+    t_list = rt_list[:, 0:3, 3] # N x 3
+
+    return lenlist, r_list, t_list
+
+def get_key_frame(lrtlist, thres=1e-3):
+    S, N, D = lrtlist.shape
+    assert D==19
+    lenlist_, r_list_, t_list_ = split_lrtlist(lrtlist.reshape((S*N, 19)))
+    t_list = t_list_.reshape((S, N, 3)) 
+    t_list_this = t_list[:S-1]
+    t_list_next = t_list[1:]
+
+    delta_t = np.abs(t_list_this - t_list_next) # S-1 x N x 3
+    is_key_frame = np.all(delta_t<thres, axis=(1,2)) # S - 1
+
+    is_key_frame = np.append(is_key_frame, False) # back to S
+
+    return is_key_frame
+
+def sort_keyframe_by_conseq(is_key_frame):
+    sorted_keyframe = [0, ]
+    key_frames = np.where(is_key_frame)[0]
+    for id, frame in enumerate(key_frames):
+        if id == (len(key_frames)-1) or (key_frames[id+1] - frame) != 1:
+            if frame - sorted_keyframe[-1] > 20: # suppress false positive
+                sorted_keyframe.append(frame)
+
+    return np.array(sorted_keyframe)
+
 if __name__ == "__main__":
     
     base_dir = 'C://Users//zuoyi//Documents//GitHub//CATER_as_CARLA//output//images//CLEVR_new_000000'
