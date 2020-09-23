@@ -219,20 +219,24 @@ def generate_gif(out_file_name, input_file_names):
         images.append(imageio.imread(filename))
     imageio.mimsave(out_file_name, images)
 
-def load_camera_info(camera_file_name, camera_name):
-    with open(camera_file_name) as json_file:
-        camera_info = json.load(json_file)
+def load_camera_info(camera_info, camera_name, frame_id):
+    # with open(camera_file_name) as json_file:
+    #     camera_info = json.load(json_file)
 
-    pix_T_cam = np.array(camera_info[camera_name]['pix_T_cam'])
-    cam_T_world = np.array(camera_info[camera_name]['cam_T_world'])
+    # in older version we only store the starting frame camera info
+    if not isinstance(camera_info[camera_name]['pix_T_cam'], dict):
+        pix_T_cam = np.array(camera_info[camera_name]['pix_T_cam'])
+        cam_T_world = np.array(camera_info[camera_name]['cam_T_world'])
+    else:
+        pix_T_cam = np.array(camera_info[camera_name]['pix_T_cam'][str(frame_id)])
+        cam_T_world = np.array(camera_info[camera_name]['cam_T_world'][str(frame_id)])
         
     return pix_T_cam, cam_T_world
 
-def load_bbox_info(meta_file_name, frame_id):
+def load_bbox_info(bbox_info, frame_id):
     dict_to_return = dict()
-    # json file
-    with open(meta_file_name) as json_file:
-        bbox_info = json.load(json_file)
+    # with open(meta_file_name) as json_file:
+    #     bbox_info = json.load(json_file)
 
     for object_name, object_info in bbox_info.items():
         lenlist = object_info['3d_dimensions']

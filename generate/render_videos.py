@@ -292,6 +292,8 @@ def main(args):
     # manage the version here
     if args.output_dir == '../output/': # change the default value
         args.output_dir = '../' + args.mod + '_s' + str(args.num_frames) + '_c' + str(args.num_cameras) + '_m' + str(args.max_motions)
+    if args.random_camera:
+        args.output_dir = args.output_dir + '_rc' 
 
     num_digits = 6
     prefix = '%s_%s_' % (args.filename_prefix, args.split)
@@ -477,7 +479,7 @@ def add_new_camera(camera_name, location):
 def sample_camera_poses(num_samples, radius=12, elev=30, distribution='uniform'):
     samples = []
     if distribution == 'uniform':
-        azs = np.arange(num_samples) * 360.0 / num_samples # uniformly sample on the sphere
+        azs = np.arange(num_samples) * 360.0 / num_samples + 45.0 # uniformly sample on the sphere
         elev = elev*np.pi/180.0 # to rad
         azs = azs*np.pi/180.0 # to rad
 
@@ -556,6 +558,9 @@ def render_scene(
     # links.new(map_value_node.outputs['Value'], output_file_node.inputs['Image'])
     links.new(rl.outputs[2], output_file_node.inputs['Image'])
 
+    # if args.random_camera:
+    #     assert args.num_cameras == 1 # we don't support both for now
+
     if args.num_cameras > 1:
         camera_poses = sample_camera_poses(num_samples=args.num_cameras)
         active_camera_list = []
@@ -631,13 +636,14 @@ def render_scene(
             args, num_objects, output_index, output_split,
             output_image, output_scene)
 
+    if args.random_camera:
+        add_random_camera_motion(args.num_frames, active_camera_list)
+
     if camera_info_path is not None:
         save_camera_info(camera_info_path, active_camera_list)
     if object_info_path is not None:
         save_object_info(object_info_path)
-
-    if args.random_camera:
-        add_random_camera_motion(args.num_frames)
+    
     if output_blendfile is not None and not os.path.exists(output_blendfile):
         bpy.ops.wm.save_as_mainfile(filepath=output_blendfile)
     # max_num_render_trials = 10
@@ -660,10 +666,17 @@ def eul2rot(theta, degrees=True):
 def save_camera_info(camera_info_path, active_camera_list):
     dict_to_save = dict()
     for active_camera_name in active_camera_list:
-        pix_T_cam, cam_T_world = get_camera_matrix(active_camera_name, verbose=False)
         dict_to_save[active_camera_name] = dict()
-        dict_to_save[active_camera_name]['pix_T_cam'] = pix_T_cam.tolist()
-        dict_to_save[active_camera_name]['cam_T_world'] = cam_T_world.tolist()
+        dict_to_save[active_camera_name]['pix_T_cam'] = dict()
+        dict_to_save[active_camera_name]['cam_T_world'] = dict()
+
+    for frame in range(bpy.context.scene.frame_start, bpy.context.scene.frame_end+1):
+        bpy.context.scene.frame_set(frame)
+
+        for active_camera_name in active_camera_list:
+            pix_T_cam, cam_T_world = get_camera_matrix(active_camera_name, verbose=False)
+            dict_to_save[active_camera_name]['pix_T_cam'][str(frame)] = pix_T_cam.tolist()
+            dict_to_save[active_camera_name]['cam_T_world'][str(frame)] = cam_T_world.tolist()
 
     with open(camera_info_path, 'w') as outfile:
         json.dump(dict_to_save, outfile)
@@ -831,20 +844,21 @@ def get_new_camera_location():
     return new_x, new_y, new_z
 
 
-def add_random_camera_motion(num_frames):
+def add_random_camera_motion(num_frames, active_camera_list):
     # Now go through these locations in a random order
     shift_interval = 30
     # Start from the same position everytime, as I want to be able to track
     # positions
-    add_camera_position(0, (None, None, None))
-    for frame_id in range(shift_interval, num_frames, shift_interval):
-        last_loc = get_new_camera_location()
-        add_camera_position(frame_id, last_loc)
-    add_camera_position(num_frames, last_loc)
+    for camera_name in active_camera_list:
+        add_camera_position(0, (None, None, None), camera_name)
+        for frame_id in range(shift_interval, num_frames, shift_interval):
+            last_loc = get_new_camera_location()
+            add_camera_position(frame_id, last_loc, camera_name)
+        add_camera_position(num_frames, last_loc, camera_name)
 
 
-def add_camera_position(frame_id, loc):
-    obj = bpy.data.objects['Camera']
+def add_camera_position(frame_id, loc, camera_name='Camera'):
+    obj = bpy.data.objects[camera_name]
     if loc[0] is not None:
         obj.location.x = loc[0]
     if loc[1] is not None:

@@ -2,6 +2,7 @@ import numpy as np
 import utils_3d
 
 import os
+import json
 
 import argparse
 import itertools
@@ -47,7 +48,10 @@ parser.add_argument(
 parser.add_argument(
     '--number_of_videos_to_use', type=int, default=-1, help="if negative, use all videos in output_dir")
 parser.add_argument(
-    '--pointcloud_size', type=int, default=10000, help="number of points per scene. downsample to make npzs smaller")
+    '--pointcloud_size', type=int, default=999999999, help="number of points per scene. downsample to make npzs smaller")
+parser.add_argument(
+    '--total_num_cameras', type=int, default=6, help="total number of cameras in dataset")
+
 
 args = parser.parse_args()
 
@@ -56,14 +60,17 @@ mod = args.mod
 
 np.random.seed(0)
 
-NUM_CAMERAS = 6
+NUM_CAMERAS = args.total_num_cameras
 # NUM_CAMERAS = 2
 if args.camera_to_use is None: # use all cams as default
-    CAMERA_NAMES = ['Camera_'+str(i) for i in range(1, NUM_CAMERAS+1)] 
+    if NUM_CAMERAS == 1:
+        CAMERA_NAMES = ['Camera']
+    else: 
+        CAMERA_NAMES = ['Camera_'+str(i) for i in range(1, NUM_CAMERAS+1)] 
 else:
     CAMERA_NAMES = args.camera_to_use
-TOTAL_NUM_FRAME = 300
-# TOTAL_NUM_FRAME = 50
+# TOTAL_NUM_FRAME = 300
+TOTAL_NUM_FRAME = 50
 MAX_OBJECTS = 10
 
 dump_base_dir = args.dump_base_dir
@@ -100,6 +107,11 @@ for video_id in range(len(video_list)):
     video_name = video_list[video_id]
     camera_info_file = os.path.join(output_camera_info_dir, video_name+'.json')
     bbox_info_file = os.path.join(output_object_info_dir, video_name+'.json')
+    with open(bbox_info_file) as json_file:
+        bbox_info_meta = json.load(json_file)
+    with open(camera_info_file) as json_file:
+        camera_info_meta = json.load(json_file)
+    
 
     print('processing video {}/{}, video_name: {}'.format(video_id+1, len(video_list), video_name))
 
@@ -108,9 +120,6 @@ for video_id in range(len(video_list)):
         for camera_name in CAMERA_NAMES: # save a different file for each view
             print('processing view: {}'.format(camera_name))
             # load frame irrelevant info
-            pix_T_camXs, camXs_T_world = utils_3d.load_camera_info(camera_info_file, camera_name)
-            world_T_camXs = np.linalg.inv(camXs_T_world)
-
             timestep_intervals = get_intervals(TOTAL_NUM_FRAME, args.seq_len)
 
             for interval in timestep_intervals:
@@ -132,8 +141,11 @@ for video_id in range(len(video_list)):
 
                 # loop over the frames
                 for frame_id in interval: # 0 to S
+                    # load camera info
+                    pix_T_camXs, camXs_T_world = utils_3d.load_camera_info(camera_info_meta, camera_name, frame_id)
+                    world_T_camXs = np.linalg.inv(camXs_T_world)
                     # load image
-                    frame_name = str(frame_id).zfill(4)+camera_name[-2:] # e.g. 0000_L
+                    frame_name = str(frame_id).zfill(4)+camera_name[-2:] if len(camera_name)==8 else str(frame_id).zfill(4)# e.g. 0000_L or 0000
                     depth_img_name = os.path.join(output_image_dir, video_name, 'Depth%s.exr' % frame_name)
                     rgb_img_name = os.path.join(output_image_dir, video_name, 'RGB%s.jpg' % frame_name)
 
@@ -147,7 +159,7 @@ for video_id in range(len(video_list)):
                         xyz_camXs = xyz_camXs[random_id, :]
 
                     # load bbox info
-                    bbox_info = utils_3d.load_bbox_info(bbox_info_file, frame_id)
+                    bbox_info = utils_3d.load_bbox_info(bbox_info_meta, frame_id)
                     num_objects, lrtlist = utils_3d.preprocess_bbox_info(bbox_info)
 
                     lrt_traj_world = np.zeros((MAX_OBJECTS, 19))
@@ -201,7 +213,7 @@ for video_id in range(len(video_list)):
         for frame_id in range(TOTAL_NUM_FRAME):
             print('processing frame: {}'.format(frame_id))
             # load some camera irrlevant information
-            bbox_info = utils_3d.load_bbox_info(bbox_info_file, frame_id)
+            bbox_info = utils_3d.load_bbox_info(bbox_info_meta, frame_id)
             num_objects, lrtlist = utils_3d.preprocess_bbox_info(bbox_info)
 
             lrt_traj_world = np.zeros((MAX_OBJECTS, 19))
@@ -236,10 +248,10 @@ for video_id in range(len(video_list)):
                 world_T_camR_list = []
 
                 for camera_name in camera_combo:
-                    pix_T_camXs, camXs_T_world = utils_3d.load_camera_info(camera_info_file, camera_name)
+                    pix_T_camXs, camXs_T_world = utils_3d.load_camera_info(camera_info_meta, camera_name, frame_id)
                     world_T_camXs = np.linalg.inv(camXs_T_world)
 
-                    frame_name = str(frame_id).zfill(4)+camera_name[-2:] # e.g. 0000_L
+                    frame_name = str(frame_id).zfill(4)+camera_name[-2:] if len(camera_name)==8 else str(frame_id).zfill(4)# e.g. 0000_L or 0000
                     depth_img_name = os.path.join(output_image_dir, video_name, 'Depth%s.exr' % frame_name)
                     rgb_img_name = os.path.join(output_image_dir, video_name, 'RGB%s.jpg' % frame_name)
 
