@@ -7,44 +7,13 @@ import json
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-img2depth_scale_factor = 1 / 0.05 
-
-# pix_T_cam = np.array([[ 350.,            0.,          160.,            0.,        ],
-#                       [   0.,         466,  120.,            0.,        ],
-#                       [   0.,            0.,            1.,            0.,        ],
-#                       [   0.,            0.,            0.,            1.,        ]])
-# pix_T_cam = np.array([[ 350,            0.,            160.,            0.,        ],
-#                       [   0.,            350.0,         120.,            0.,        ],
-#                       [   0.,            0.,            1.,            0.,        ],
-#                       [   0.,            0.,            0.,            1.,        ]])
-
-# cam_T_world =  ([[  1.79110646e-01,  -9.83828962e-01,  -6.92129515e-06,   6.92129515e-05],
-#                  [ -9.83827949e-01,  -1.79110453e-01,  -1.46486727e-03,   1.46486727e-02],
-#                  [  1.43993914e-03,   2.69182754e-04,  -9.99998927e-01,   9.99998927e+00],
-#                  [  0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   1.00000000e+00]])
-
-# cam_T_world =  ([[  6.63005233e-01,   7.48614728e-01,   9.85652093e-09,  -1.14529834e-02],
-#                  [  3.54717642e-01,  -3.14153105e-01,  -8.80615234e-01,  -3.27243269e-03],
-#                  [ -6.59241557e-01,   5.83852530e-01,  -4.73832011e-01,   1.07452393e+01],
-#                  [  0.00000000e+00,   0.00000000e+00,   0.00000000e+00,   1.00000000e+00]])
-
-# cam_T_world = ([[ -6.56495214e-01,   7.54330158e-01,  -6.09365181e-09,   7.43821359e-03],
-#                 [  3.58130813e-01,   3.11682045e-01,  -8.80111694e-01,  -4.95519886e-03],
-#                 [ -6.63894832e-01,  -5.77789128e-01,  -4.74766642e-01,   1.12568166e+01],
-#                 [  0.00000000e+00,   0.00000000e+00,  0.00000000e+00,   1.00000000e+00]])
-
-                 
-
-# world_T_cam = np.array([(0.1791, 0.9838, -0.0014,  0.0000),
-#               (-0.9838, 0.1791, -0.0003,  0.0000),
-#               ( 0.0000, 0.0015,  1.0000, 10.0000),
-#               ( 0.0000, 0.0000,  0.0000,  1.0000)])
-
-def img2depth(img):
-    # img is a H x W x 3 np array, each value between 0 and 1
-    if len(img.shape) == 3: # H x W x C
-        img = img[:, :, 0] # 3 channels are the same
-    return img2depth_scale_factor*img
+SHAPE_CLASSES = {
+    'Sphere':0,
+    'Spl':1,
+    'Cylinder':2,
+    'Cube':3,
+    'Cone':4,
+}
 
 def load_image(img_dir, normalize=True, downsample_factor=1.0):
     img = imageio.imread(img_dir)
@@ -56,12 +25,6 @@ def load_image(img_dir, normalize=True, downsample_factor=1.0):
 
 def load_depth(img_dir):
     return cv2.imread(img_dir, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)[:, :, 0]
-
-# def meshgrid2d(H, W):
-#     x = np.linspace(0, H, H)
-#     y = np.linspace(0, W, W)
-#     xv, yv = np.meshgrid(x, y, indexing='ij')
-#     return xv, yv
 
 def meshgrid2D(Y, X):
     grid_y = np.linspace(0.0, Y-1, Y)
@@ -203,6 +166,8 @@ def preprocess_bbox_info(bbox_info):
     # lrt list is N x 19
     num_objects = 0
     lrtlist = []
+    shapelist = []
+
     for object_name, object_info in bbox_info.items():
         num_objects += 1
         lenlist = object_info['lenlist']
@@ -210,8 +175,18 @@ def preprocess_bbox_info(bbox_info):
         lrtlist_obj = np.concatenate([lenlist, world_T_obj.flatten()]) # len-19
         lrtlist.append(lrtlist_obj)
 
+        shape_matched = False
+        for shape_key, shape_id in SHAPE_CLASSES.items():
+            if shape_key in object_name:
+                shape_matched = True
+                shapelist.append(shape_id)
+                break
+
+        assert shape_matched, "unknown shape: {}".format(object_name)        
+
     lrtlist = np.array(lrtlist)
-    return num_objects, lrtlist
+    shapelist = np.array(shapelist)
+    return num_objects, lrtlist, shapelist
 
 def generate_gif(out_file_name, input_file_names):
     images = []
