@@ -138,6 +138,7 @@ for video_id in range(len(video_list)):
                 lrt_traj_world_list = []
                 scorelist_list = []
                 world_T_camR_list = []
+                shapelist_list = []
 
                 # loop over the frames
                 for frame_id in interval: # 0 to S
@@ -160,18 +161,20 @@ for video_id in range(len(video_list)):
 
                     # load bbox info
                     bbox_info = utils_3d.load_bbox_info(bbox_info_meta, frame_id)
-                    num_objects, lrtlist = utils_3d.preprocess_bbox_info(bbox_info)
+                    num_objects, lrtlist, shapes = utils_3d.preprocess_bbox_info(bbox_info)
 
                     lrt_traj_world = np.zeros((MAX_OBJECTS, 19))
                     # initialize as a unit cube at center
                     lrt_traj_world[:, 0:3] = 1.0 # set length=1
                     lrt_traj_world[:, 3:] = (np.eye(4).reshape(-1)[None, :]).repeat(MAX_OBJECTS, axis=0) # set RT to indentity transformation
+                    lrt_traj_world[:num_objects, :] = lrtlist
 
                     scorelist = np.zeros(MAX_OBJECTS)
-                    lrt_traj_world[:num_objects, :] = lrtlist
-                    lrt_traj_world[num_objects:, 0:3] = 1.0 
-
                     scorelist[:num_objects] = 1.0
+
+                    shapelist = np.zeros(MAX_OBJECTS)
+                    shapelist.fill(-1)
+                    shapelist[:num_objects] = shapes
 
                     # define camR here
                     world_T_camR = np.array(
@@ -187,6 +190,7 @@ for video_id in range(len(video_list)):
                     lrt_traj_world_list.append(lrt_traj_world)
                     scorelist_list.append(scorelist)
                     world_T_camR_list.append(world_T_camR)
+                    shapelist_list.append(shapelist)
 
                 pix_T_camXs_list = np.array(pix_T_camXs_list, dtype=np.float32)
                 rgb_camXs_list = np.array(rgb_camXs_list, dtype=np.uint8)
@@ -195,6 +199,7 @@ for video_id in range(len(video_list)):
                 lrt_traj_world_list = np.array(lrt_traj_world_list, dtype=np.float32)
                 scorelist_list = np.array(scorelist_list, dtype=np.float32)
                 world_T_camR_list = np.array(world_T_camR_list, dtype=np.float32)
+                shapelist_list = np.array(shapelist_list, dtype=np.int64)
 
                 dict_to_save = {
                     'pix_T_camXs': pix_T_camXs_list,
@@ -203,7 +208,8 @@ for video_id in range(len(video_list)):
                     'world_T_camXs': world_T_camXs_list,
                     'lrt_traj_world': lrt_traj_world_list,
                     'scorelist': scorelist_list,
-                    'world_T_camR': world_T_camR_list
+                    'world_T_camR': world_T_camR_list,
+                    'shapelist': shapelist_list,
                 }
 
                 np.savez(dump_file_name, **dict_to_save)
@@ -214,12 +220,19 @@ for video_id in range(len(video_list)):
             print('processing frame: {}'.format(frame_id))
             # load some camera irrlevant information
             bbox_info = utils_3d.load_bbox_info(bbox_info_meta, frame_id)
-            num_objects, lrtlist = utils_3d.preprocess_bbox_info(bbox_info)
+            num_objects, lrtlist, shapes = utils_3d.preprocess_bbox_info(bbox_info)
 
             lrt_traj_world = np.zeros((MAX_OBJECTS, 19))
-            scorelist = np.zeros(MAX_OBJECTS)
+            lrt_traj_world[:, 0:3] = 1.0 # set length=1
+            lrt_traj_world[:, 3:] = (np.eye(4).reshape(-1)[None, :]).repeat(MAX_OBJECTS, axis=0) # set RT to indentity transformation
             lrt_traj_world[:num_objects, :] = lrtlist
+            
+            scorelist = np.zeros(MAX_OBJECTS)
             scorelist[:num_objects] = 1.0
+
+            shapelist = np.zeros(MAX_OBJECTS)
+            shapelist.fill(-1)
+            shapelist[:num_objects] = shapes
 
             # define camR here
             world_T_camR = np.array(
@@ -246,6 +259,7 @@ for video_id in range(len(video_list)):
                 lrt_traj_world_list = []
                 scorelist_list = []
                 world_T_camR_list = []
+                shapelist_list = []
 
                 for camera_name in camera_combo:
                     pix_T_camXs, camXs_T_world = utils_3d.load_camera_info(camera_info_meta, camera_name, frame_id)
@@ -271,6 +285,7 @@ for video_id in range(len(video_list)):
                     lrt_traj_world_list.append(lrt_traj_world)
                     scorelist_list.append(scorelist)
                     world_T_camR_list.append(world_T_camR)
+                    shapelist_list.append(shapelist)
 
                 pix_T_camXs_list = np.array(pix_T_camXs_list, dtype=np.float32)
                 rgb_camXs_list = np.array(rgb_camXs_list, dtype=np.uint8)
@@ -279,6 +294,7 @@ for video_id in range(len(video_list)):
                 lrt_traj_world_list = np.array(lrt_traj_world_list, dtype=np.float32)
                 scorelist_list = np.array(scorelist_list, dtype=np.float32)
                 world_T_camR_list = np.array(world_T_camR_list, dtype=np.float32)
+                shapelist_list = np.array(shapelist_list, dtype=np.int64)
 
                 dict_to_save = {
                     'pix_T_camXs': pix_T_camXs_list,
@@ -287,7 +303,8 @@ for video_id in range(len(video_list)):
                     'world_T_camXs': world_T_camXs_list,
                     'lrt_traj_world': lrt_traj_world_list,
                     'scorelist': scorelist_list,
-                    'world_T_camR': world_T_camR_list
+                    'world_T_camR': world_T_camR_list,
+                    'shapelist': shapelist_list
                 }
 
                 np.savez(dump_file_name, **dict_to_save)
