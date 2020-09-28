@@ -7,6 +7,20 @@ import json
 import argparse
 import itertools
 
+ACTION_CLASSES = {
+        '_slide': 1,
+        '_pick_place': 2,
+        '_rotate': 3,
+    }
+
+SHAPE_CLASSES = {
+    'Sphere':0,
+    'Spl':1,
+    'Cylinder':2,
+    'Cube':3,
+    'Cone':4,
+}
+
 def find_all_files(dir, extension='.json'):
     file_list = []
     for file in os.listdir(dir):
@@ -107,6 +121,7 @@ for video_id in range(len(video_list)):
     video_name = video_list[video_id]
     camera_info_file = os.path.join(output_camera_info_dir, video_name+'.json')
     bbox_info_file = os.path.join(output_object_info_dir, video_name+'.json')
+    scene_info_file = os.path.join(output_scene_dir, video_name+'.json')
     with open(bbox_info_file) as json_file:
         bbox_info_meta = json.load(json_file)
     with open(camera_info_file) as json_file:
@@ -114,6 +129,23 @@ for video_id in range(len(video_list)):
     
 
     print('processing video {}/{}, video_name: {}'.format(video_id+1, len(video_list), video_name))
+
+    # get object list
+    object_name_list = []
+    bbox_info = utils_3d.load_bbox_info(bbox_info_meta, 0)
+    for object_name, object_info in bbox_info.items():
+        object_name_list.append(object_name)
+
+    action_label_list = []
+    for object_name in object_name_list:
+        action_label = utils_3d.load_action_label(scene_info_file, object_name, ACTION_CLASSES, TOTAL_NUM_FRAME)
+        action_label_list.append(action_label)
+
+    action_label_list = np.array(action_label_list) # N x TOTAL_NUM_FRAME
+    
+    # action_label_list = np.zeros((TOTAL_NUM_FRAME, MAX_OBJECTS), dtype=np.float32)
+
+
 
     if data_format == 'traj':
         # S is the sequence dim
@@ -139,6 +171,7 @@ for video_id in range(len(video_list)):
                 scorelist_list = []
                 world_T_camR_list = []
                 shapelist_list = []
+                actionlist_list = []
 
                 # loop over the frames
                 for frame_id in interval: # 0 to S
@@ -161,7 +194,7 @@ for video_id in range(len(video_list)):
 
                     # load bbox info
                     bbox_info = utils_3d.load_bbox_info(bbox_info_meta, frame_id)
-                    num_objects, lrtlist, shapes = utils_3d.preprocess_bbox_info(bbox_info)
+                    num_objects, lrtlist, shapes = utils_3d.preprocess_bbox_info(bbox_info, SHAPE_CLASSES)
 
                     lrt_traj_world = np.zeros((MAX_OBJECTS, 19))
                     # initialize as a unit cube at center
@@ -175,6 +208,10 @@ for video_id in range(len(video_list)):
                     shapelist = np.zeros(MAX_OBJECTS)
                     shapelist.fill(-1)
                     shapelist[:num_objects] = shapes
+
+                    actionlist = np.zeros(MAX_OBJECTS)
+                    actionlist.fill(-1)
+                    actionlist[:num_objects] = action_label_list[:, frame_id]
 
                     # define camR here
                     world_T_camR = np.array(
@@ -191,6 +228,7 @@ for video_id in range(len(video_list)):
                     scorelist_list.append(scorelist)
                     world_T_camR_list.append(world_T_camR)
                     shapelist_list.append(shapelist)
+                    actionlist_list.append(actionlist)
 
                 pix_T_camXs_list = np.array(pix_T_camXs_list, dtype=np.float32)
                 rgb_camXs_list = np.array(rgb_camXs_list, dtype=np.uint8)
@@ -200,6 +238,9 @@ for video_id in range(len(video_list)):
                 scorelist_list = np.array(scorelist_list, dtype=np.float32)
                 world_T_camR_list = np.array(world_T_camR_list, dtype=np.float32)
                 shapelist_list = np.array(shapelist_list, dtype=np.int64)
+                actionlist_list = np.array(actionlist_list, dtype=np.int64)
+
+                print(actionlist_list)
 
                 dict_to_save = {
                     'pix_T_camXs': pix_T_camXs_list,
@@ -210,6 +251,7 @@ for video_id in range(len(video_list)):
                     'scorelist': scorelist_list,
                     'world_T_camR': world_T_camR_list,
                     'shapelist': shapelist_list,
+                    'actionlist': actionlist_list,
                 }
 
                 np.savez(dump_file_name, **dict_to_save)
@@ -220,7 +262,7 @@ for video_id in range(len(video_list)):
             print('processing frame: {}'.format(frame_id))
             # load some camera irrlevant information
             bbox_info = utils_3d.load_bbox_info(bbox_info_meta, frame_id)
-            num_objects, lrtlist, shapes = utils_3d.preprocess_bbox_info(bbox_info)
+            num_objects, lrtlist, shapes = utils_3d.preprocess_bbox_info(bbox_info, SHAPE_CLASSES)
 
             lrt_traj_world = np.zeros((MAX_OBJECTS, 19))
             lrt_traj_world[:, 0:3] = 1.0 # set length=1
@@ -233,6 +275,10 @@ for video_id in range(len(video_list)):
             shapelist = np.zeros(MAX_OBJECTS)
             shapelist.fill(-1)
             shapelist[:num_objects] = shapes
+
+            actionlist = np.zeros(MAX_OBJECTS)
+            actionlist.fill(-1)
+            actionlist[:num_objects] = action_label_list[:, frame_id]
 
             # define camR here
             world_T_camR = np.array(
@@ -260,6 +306,7 @@ for video_id in range(len(video_list)):
                 scorelist_list = []
                 world_T_camR_list = []
                 shapelist_list = []
+                actionlist_list = []
 
                 for camera_name in camera_combo:
                     pix_T_camXs, camXs_T_world = utils_3d.load_camera_info(camera_info_meta, camera_name, frame_id)
@@ -286,6 +333,7 @@ for video_id in range(len(video_list)):
                     scorelist_list.append(scorelist)
                     world_T_camR_list.append(world_T_camR)
                     shapelist_list.append(shapelist)
+                    actionlist_list.append(actionlist)
 
                 pix_T_camXs_list = np.array(pix_T_camXs_list, dtype=np.float32)
                 rgb_camXs_list = np.array(rgb_camXs_list, dtype=np.uint8)
@@ -295,6 +343,7 @@ for video_id in range(len(video_list)):
                 scorelist_list = np.array(scorelist_list, dtype=np.float32)
                 world_T_camR_list = np.array(world_T_camR_list, dtype=np.float32)
                 shapelist_list = np.array(shapelist_list, dtype=np.int64)
+                actionlist_list = np.array(actionlist_list, dtype=np.int64)
 
                 dict_to_save = {
                     'pix_T_camXs': pix_T_camXs_list,
@@ -304,7 +353,8 @@ for video_id in range(len(video_list)):
                     'lrt_traj_world': lrt_traj_world_list,
                     'scorelist': scorelist_list,
                     'world_T_camR': world_T_camR_list,
-                    'shapelist': shapelist_list
+                    'shapelist': shapelist_list,
+                    'actionlist': actionlist_list,
                 }
 
                 np.savez(dump_file_name, **dict_to_save)

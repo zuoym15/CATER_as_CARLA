@@ -7,13 +7,7 @@ import json
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-SHAPE_CLASSES = {
-    'Sphere':0,
-    'Spl':1,
-    'Cylinder':2,
-    'Cube':3,
-    'Cone':4,
-}
+
 
 def load_image(img_dir, normalize=True, downsample_factor=1.0):
     img = imageio.imread(img_dir)
@@ -162,7 +156,7 @@ def show_pointcloud(name, xyz, color=None, x_lim=None, y_lim=None, z_lim=None, t
 
     set_axes_equal(ax)
 
-def preprocess_bbox_info(bbox_info):
+def preprocess_bbox_info(bbox_info, shape_classes):
     # lrt list is N x 19
     num_objects = 0
     lrtlist = []
@@ -176,7 +170,7 @@ def preprocess_bbox_info(bbox_info):
         lrtlist.append(lrtlist_obj)
 
         shape_matched = False
-        for shape_key, shape_id in SHAPE_CLASSES.items():
+        for shape_key, shape_id in shape_classes.items():
             if shape_key in object_name:
                 shape_matched = True
                 shapelist.append(shape_id)
@@ -221,6 +215,19 @@ def load_bbox_info(bbox_info, frame_id):
         dict_to_return[object_name]['world_T_obj'] = np.array(world_T_obj)
 
     return dict_to_return
+
+def load_action_label(scene_info_file, object_name, action_classes, total_num_frames=300):
+    with open(scene_info_file) as json_file:
+        scene_info = json.load(json_file)
+
+    action_label = np.zeros(total_num_frames)
+    obj_movement_list = scene_info['movements'][object_name]
+    for obj_movement in obj_movement_list:
+        action_name, _, start_frame, end_frame = obj_movement
+        if action_name in action_classes:
+            action_label[start_frame:end_frame+1] = action_classes[action_name]
+
+    return action_label
 
 def get_corners_world(lenlist, world_T_obj):
     lx = lenlist[0]
