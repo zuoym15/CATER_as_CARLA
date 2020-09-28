@@ -23,6 +23,9 @@ def mkdir_p(path):
         os.makedirs(path)
 
 def get_intervals(range_max, S):
+    # if range_max == S:
+    #     return([list(range(range_max)), ])
+    # else:
     res = []
     for s in range(S):
         res.append(range(range_max)[s::S])
@@ -69,8 +72,8 @@ if args.camera_to_use is None: # use all cams as default
         CAMERA_NAMES = ['Camera_'+str(i) for i in range(1, NUM_CAMERAS+1)] 
 else:
     CAMERA_NAMES = args.camera_to_use
-# TOTAL_NUM_FRAME = 300
-TOTAL_NUM_FRAME = 50
+TOTAL_NUM_FRAME = 300
+# TOTAL_NUM_FRAME = 50
 MAX_OBJECTS = 10
 
 dump_base_dir = args.dump_base_dir
