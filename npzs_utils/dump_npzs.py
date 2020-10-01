@@ -11,6 +11,8 @@ ACTION_CLASSES = {
         '_slide': 1,
         '_pick_place': 2,
         '_rotate': 3,
+        '_contain': 4,
+        '_be_contained': 5,
     }
 
 SHAPE_CLASSES = {
@@ -140,8 +142,9 @@ for video_id in range(len(video_list)):
         object_name_list.append(object_name)
 
     action_label_list = []
+    action_label_dict = utils_3d.load_action_label(scene_info_file, object_name_list, ACTION_CLASSES, TOTAL_NUM_FRAME)
     for object_name in object_name_list:
-        action_label = utils_3d.load_action_label(scene_info_file, object_name, ACTION_CLASSES, TOTAL_NUM_FRAME)
+        action_label = action_label_dict[object_name]
         action_label_list.append(action_label)
 
     action_label_list = np.array(action_label_list) # N x TOTAL_NUM_FRAME
@@ -242,9 +245,7 @@ for video_id in range(len(video_list)):
                 world_T_camR_list = np.array(world_T_camR_list, dtype=np.float32)
                 shapelist_list = np.array(shapelist_list, dtype=np.int64)
                 actionlist_list = np.array(actionlist_list, dtype=np.int64)
-
-                print(actionlist_list)
-
+                
                 dict_to_save = {
                     'pix_T_camXs': pix_T_camXs_list,
                     'rgb_camXs': rgb_camXs_list,

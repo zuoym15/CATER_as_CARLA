@@ -216,18 +216,26 @@ def load_bbox_info(bbox_info, frame_id):
 
     return dict_to_return
 
-def load_action_label(scene_info_file, object_name, action_classes, total_num_frames=300):
+def load_action_label(scene_info_file, object_name_list, action_classes, total_num_frames=300):
     with open(scene_info_file) as json_file:
         scene_info = json.load(json_file)
 
-    action_label = np.zeros(total_num_frames)
-    obj_movement_list = scene_info['movements'][object_name]
-    for obj_movement in obj_movement_list:
-        action_name, _, start_frame, end_frame = obj_movement
-        if action_name in action_classes:
-            action_label[start_frame:end_frame+1] = action_classes[action_name]
+    action_label_dict = {}
 
-    return action_label
+    for object_name in object_name_list:
+        action_label_dict[object_name] = np.zeros(total_num_frames)
+
+    for object_name in object_name_list:
+        obj_movement_list = scene_info['movements'][object_name]
+        for obj_movement in obj_movement_list:
+            action_name, other_obj_name, start_frame, end_frame = obj_movement
+            if action_name in action_classes:
+                action_label_dict[object_name][start_frame:end_frame+1] = action_classes[action_name]
+
+            if action_name == '_contain': # this is special
+                action_label_dict[other_obj_name][start_frame:end_frame+1] = action_classes['_be_contained']
+
+    return action_label_dict
 
 def get_corners_world(lenlist, world_T_obj):
     lx = lenlist[0]
