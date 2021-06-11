@@ -609,3 +609,33 @@ def get_clist_from_lrtlist(lrtlist):
 
     xyzlist_cam = apply_4x4s(rtlist, xyzlist_obj)
     return xyzlist_cam
+
+def get_pts_inbound_lrt(xyz, lrt, mult_pad=1.0):
+    N, D = list(xyz.shape)
+    C, = lrt.shape
+    assert(C == 19)
+    assert(D == 3)
+    lens, cam_T_obj = split_lrtlist(lrt.reshape(1, 19))
+    lens = lens.reshape(3)
+    cam_T_obj = cam_T_obj.reshape(4, 4)
+
+    obj_T_cam = safe_inverse(cam_T_obj)
+    xyz_obj = apply_4x4(obj_T_cam, xyz) # B x N x 3
+
+    x = xyz_obj[:, 0] # N
+    y = xyz_obj[:, 1]
+    z = xyz_obj[:, 2]
+    lx = lens[0] * mult_pad # float
+    ly = lens[1] * mult_pad # float
+    lz = lens[2] * mult_pad # float
+
+
+    x_valid = np.logical_and((x > -lx/2.0), (x < lx/2.0))
+    #print('xvalid', np.sum(x_valid))
+    y_valid = np.logical_and((y > -ly/2.0), (y < ly/2.0))
+    #print('yvalid', np.sum(y_valid))
+    z_valid = np.logical_and((z > -lz/2.0), (z < lz/2.0))
+    #print('zvalid', np.sum(z_valid))
+    inbounds = np.logical_and(np.logical_and(x_valid, y_valid), z_valid) # N
+    #print('inbounds', np.sum(inbounds))
+    return inbounds
